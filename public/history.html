@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prospect Research — History</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="logo">Prospect<span>Research</span></div>
+    <a href="/" class="nav-link">Dashboard</a>
+    <a href="/icp" class="nav-link">ICP Settings</a>
+    <a href="/history" class="nav-link active">History</a>
+  </nav>
+
+  <main class="content">
+    <header>
+      <h1>Pipeline History</h1>
+      <p class="subtitle">View and revisit past research runs.</p>
+    </header>
+
+    <div id="historyList" class="card">
+      <p id="loadingText">Loading runs...</p>
+    </div>
+
+    <!-- Detail modal overlay -->
+    <div id="detailOverlay" class="overlay hidden">
+      <div class="overlay-content">
+        <div class="overlay-header">
+          <h2 id="detailTitle">Run Details</h2>
+          <button id="closeOverlay" class="btn btn-secondary">Close</button>
+        </div>
+        <div class="table-wrapper">
+          <table id="detailTable">
+            <thead>
+              <tr>
+                <th>Company Name</th>
+                <th>Source</th>
+                <th>ATS Detected</th>
+                <th>Roles Found</th>
+                <th>Hiring Signals</th>
+                <th>Keywords</th>
+                <th>Signal Strength</th>
+                <th>In Bullhorn</th>
+                <th>Bullhorn Status</th>
+                <th>Last Activity</th>
+              </tr>
+            </thead>
+            <tbody id="detailBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/history.js"></script>
+</body>
+</html>
