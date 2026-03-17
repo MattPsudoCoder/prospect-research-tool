@@ -22,6 +22,7 @@ async function searchCompaniesByICP(icp) {
 - Company size: ${icp.company_size_min} – ${icp.company_size_max} employees
 - Geography: ${icp.geography}
 - Role types they'd hire: ${icp.role_types}
+${icp.hiring_signals ? `- Prioritize companies showing these hiring signals: ${icp.hiring_signals}` : ''}
 
 Focus on companies that show signs of active hiring or growth (recent funding, expansion, new offices, leadership hires).
 
@@ -39,7 +40,7 @@ Return ONLY a JSON array of company names, no commentary. Example: ["Acme Corp",
   if (!textBlock) return [];
 
   try {
-    const match = textBlock.text.match(/\[[\s\S]*?\]/);
+    const match = textBlock.text.match(/\[[\s\S]*\]/);
     return match ? JSON.parse(match[0]) : [];
   } catch {
     return [];
@@ -49,17 +50,25 @@ Return ONLY a JSON array of company names, no commentary. Example: ["Acme Corp",
 /**
  * Use Claude with web search to research hiring signals for a company.
  */
-async function researchCompany(companyName) {
+async function researchCompany(companyName, icp) {
   const anthropic = getClient();
+
+  const roleContext = icp?.role_types
+    ? `\n\nIMPORTANT CONTEXT: This research is for a technical recruiter who places: ${icp.role_types}. Weight your signal strength assessment based on whether this company is likely hiring these specific roles. A company hiring lots of engineers is "High" signal; a company only hiring sales/marketing is "Low" even if they're growing.`
+    : '';
+
+  const signalContext = icp?.hiring_signals
+    ? `\n6. Specifically look for these signals: ${icp.hiring_signals}`
+    : '';
 
   const prompt = `Research the company "${companyName}" for hiring and growth signals. Look for:
 1. Recent funding rounds or revenue milestones
 2. Executive or leadership hires
 3. Office expansions or new locations
 4. Job posting velocity (are they posting lots of roles?)
-5. Any layoffs or freezes (negative signals)
+5. Any layoffs or freezes (negative signals)${signalContext}
 
-Also search for their careers page URL if you can find it.
+Also search for their careers page URL if you can find it.${roleContext}
 
 Return a JSON object with this exact structure:
 {
@@ -85,7 +94,7 @@ Return ONLY the JSON, no other text.`;
   }
 
   try {
-    const match = textBlock.text.match(/\{[\s\S]*?\}/);
+    const match = textBlock.text.match(/\{[\s\S]*\}/);
     return match ? JSON.parse(match[0]) : { hiring_signals: '', keywords: '', signal_strength: 'Low', careers_page: '', details: '' };
   } catch {
     return { hiring_signals: textBlock.text.slice(0, 300), keywords: '', signal_strength: 'Low', careers_page: '', details: '' };
@@ -126,7 +135,7 @@ Return ONLY the JSON.`;
   if (!textBlock) return { ats_found: '', sample_roles: '', job_count_estimate: 0 };
 
   try {
-    const match = textBlock.text.match(/\{[\s\S]*?\}/);
+    const match = textBlock.text.match(/\{[\s\S]*\}/);
     return match ? JSON.parse(match[0]) : { ats_found: '', sample_roles: '', job_count_estimate: 0 };
   } catch {
     return { ats_found: '', sample_roles: '', job_count_estimate: 0 };

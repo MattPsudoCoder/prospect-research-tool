@@ -82,6 +82,10 @@ router.post(
       // Deduplicate
       const unique = deduplicate(allCompanies);
 
+      // Load ICP settings for research context (role_types, hiring_signals)
+      const icpRow = await db.query('SELECT * FROM icp_settings ORDER BY id DESC LIMIT 1');
+      const icp = icpRow.rows.length > 0 ? icpRow.rows[0] : null;
+
       // Create pipeline run in DB
       const runResult = await db.query(
         `INSERT INTO pipeline_runs (name, status, total_companies) VALUES ($1, 'running', $2) RETURNING *`,
@@ -91,7 +95,7 @@ router.post(
 
       // Start processing in background
       activeRuns.set(run.id, { total: unique.length, processed: 0, status: 'running' });
-      processCompanies(run.id, unique).catch((err) => {
+      processCompanies(run.id, unique, icp).catch((err) => {
         console.error('Pipeline error:', err);
         activeRuns.set(run.id, { ...activeRuns.get(run.id), status: 'error', error: err.message });
       });
@@ -107,12 +111,12 @@ router.post(
 /**
  * Process companies sequentially (to manage API rate limits).
  */
-async function processCompanies(runId, companies) {
+async function processCompanies(runId, companies, icp) {
   for (let i = 0; i < companies.length; i++) {
     const { name, source } = companies[i];
 
     try {
-      const result = await researchCompany(name, source);
+      const result = await researchCompany(name, source, icp);
 
       await db.query(
         `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity, raw_research)

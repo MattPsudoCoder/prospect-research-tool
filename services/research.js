@@ -10,10 +10,10 @@ const bullhorn = require('./bullhorn');
  * Research one company: web signals + ATS detection + Bullhorn check.
  * Returns a flat result object suitable for the output table.
  */
-async function researchCompany(companyName, source) {
+async function researchCompany(companyName, source, icp) {
   // Run research and ATS detection in parallel
   const [signals, atsResult] = await Promise.all([
-    claude.researchCompany(companyName),
+    claude.researchCompany(companyName, icp),
     ats.detectATS(companyName),
   ]);
 
