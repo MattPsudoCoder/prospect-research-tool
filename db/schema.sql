@@ -1,42 +1,46 @@
 -- Prospect Research Tool — Database Schema
 
 CREATE TABLE IF NOT EXISTS icp_settings (
-  id SERIAL PRIMARY KEY,
-  industry_sector TEXT NOT NULL DEFAULT '',
-  company_size_min INTEGER DEFAULT 0,
-  company_size_max INTEGER DEFAULT 0,
-  geography TEXT NOT NULL DEFAULT '',
-  role_types TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+    id SERIAL PRIMARY KEY,
+    industry_sector TEXT NOT NULL DEFAULT '',
+    company_size_min INTEGER DEFAULT 0,
+    company_size_max INTEGER DEFAULT 0,
+    geography TEXT NOT NULL DEFAULT '',
+    role_types TEXT NOT NULL DEFAULT '',
+    hiring_signals TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+-- Migration: add hiring_signals column if it doesn't exist
+ALTER TABLE icp_settings ADD COLUMN IF NOT EXISTS hiring_signals TEXT;
 
 CREATE TABLE IF NOT EXISTS pipeline_runs (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'pending',
-  total_companies INTEGER DEFAULT 0,
-  processed_companies INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
-);
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    total_companies INTEGER DEFAULT 0,
+    processed_companies INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+  );
 
 CREATE TABLE IF NOT EXISTS companies (
-  id SERIAL PRIMARY KEY,
-  run_id INTEGER REFERENCES pipeline_runs(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  source TEXT NOT NULL,
-  ats_detected TEXT DEFAULT '',
-  roles_found TEXT DEFAULT '',
-  hiring_signals TEXT DEFAULT '',
-  keywords TEXT DEFAULT '',
-  signal_strength TEXT DEFAULT '',
-  in_bullhorn BOOLEAN DEFAULT FALSE,
-  bullhorn_status TEXT DEFAULT '',
-  last_activity TEXT DEFAULT '',
-  raw_research JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+    id SERIAL PRIMARY KEY,
+    run_id INTEGER REFERENCES pipeline_runs(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    source TEXT NOT NULL,
+    ats_detected TEXT DEFAULT '',
+    roles_found TEXT DEFAULT '',
+    hiring_signals TEXT DEFAULT '',
+    keywords TEXT DEFAULT '',
+    signal_strength TEXT DEFAULT '',
+    in_bullhorn BOOLEAN DEFAULT FALSE,
+    bullhorn_status TEXT DEFAULT '',
+    last_activity TEXT DEFAULT '',
+    raw_research JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
 
 -- Seed a default ICP row if none exists
 INSERT INTO icp_settings (industry_sector, company_size_min, company_size_max, geography, role_types)
