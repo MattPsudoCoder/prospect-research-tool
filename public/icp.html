@@ -47,7 +47,12 @@
         <textarea id="roleTypes" rows="3" placeholder="e.g. Software Engineer, Product Manager, Data Scientist, DevOps"></textarea>
         <small>Comma-separated list of roles your firm typically places</small>
       </div>
-
+      <div class="form-group">
+                <label for="hiringSignals">Hiring Signals</label>
+                        <textarea id="hiringSignals" rows="3" placeholder="e.g. Series A funding, new office opening, recent layoffs at competitor"></textarea>
+                                <small>Signals that indicate a company is likely hiring (comma-separated)</small>
+                                      </div>
+                                      
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Save Settings</button>
         <span id="saveStatus" class="save-status"></span>
@@ -58,72 +63,3 @@
   <script src="/js/icp.js"></script>
 </body>
 </html>
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Prospect Research — ICP Settings</title>
-    <link rel="stylesheet" href="/css/style.css">
-  </head>
-<body>
-    <nav class="sidebar">
-          <div class="logo">Prospect<span>Research</span></div>div>
-        <a href="/" class="nav-link">Dashboard</a>a>
-        <a href="/icp" class="nav-link active">ICP Settings</a>a>
-        <a href="/history" class="nav-link">History</a>a>
-    </nav>nav>
-
-  <main class="content">
-      <header>
-              <h1>Ideal Client Profile</h1>
-            <p class="subtitle">Define the type of companies you want to target. These settings are used by the Claude-powered ICP search.</p>p>
-      </header>
-  
-      <form id="icpForm" class="card">
-            <div class="form-group">
-                    <label for="industrySector">Industry Sector</label>label>
-                    <input type="text" id="industrySector" placeholder="e.g. SaaS, FinTech, HealthTech, E-commerce">
-            </div>div>
-      
-            <div class="form-row">
-                    <div class="form-group">
-                              <label for="companySizeMin">Min Employees</label>label>
-                              <input type="number" id="companySizeMin" min="0" placeholder="50">
-                    </div>div>
-                    <div class="form-group">
-                              <label for="companySizeMax">Max Employees</label>label>
-                              <input type="number" id="companySizeMax" min="0" placeholder="5000">
-                    </div>div>
-            </div>div>
-      
-            <div class="form-group">
-                    <label for="geography">Geography</label>label>
-                    <input type="text" id="geography" placeholder="e.g. United States, Bay Area, Europe">
-            </div>div>
-      
-            <div class="form-group">
-                    <label for="roleTypes">Role Types Placed</label>label>
-                    <textarea id="roleTypes" rows="3" placeholder="e.g. Software Engineer, Product Manager, Data Scientist, DevOps"></textarea>
-                    <small>Comma-separated list of roles your firm typically places</small>
-            </div>div>
-      
-            <div class="form-group">
-                    <label for="hiringSignals">Hiring Signals</label>label>
-                    <textarea id="hiringSignals" rows="3" placeholder="e.g. Series A funding, new office opening, recent layoffs at competitor"></textarea>
-                    <small>Signals that indicate a company is likely hiring (comma-separated)</small>
-            </div>div>
-      
-            <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Save Settings</button>button>
-                    <span id="saveStatus" class="save-status"></span>
-            </div>div>
-      </form>form>
-  </main>main>
-
-  <script src="/js/icp.js"></script>
-</body>
-</html>html></small></small></h1>
-      </header></span>
-</body></title>
-  </head>
