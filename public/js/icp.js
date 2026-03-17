@@ -14,6 +14,7 @@ async function loadSettings() {
     document.getElementById('companySizeMax').value = data.company_size_max || '';
     document.getElementById('geography').value = data.geography || '';
     document.getElementById('roleTypes').value = data.role_types || '';
+        document.getElementById('hiringSignals').value = data.hiring_signals || '';
   } catch (err) {
     console.error('Failed to load ICP settings:', err);
   }
@@ -29,6 +30,7 @@ form.addEventListener('submit', async (e) => {
     company_size_max: parseInt(document.getElementById('companySizeMax').value) || 0,
     geography: document.getElementById('geography').value,
     role_types: document.getElementById('roleTypes').value,
+        hiring_signals: document.getElementById('hiringSignals').value,
   };
 
   try {
