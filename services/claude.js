@@ -10,6 +10,31 @@ function getClient() {
 }
 
 /**
+ * Extract a JSON object or array from a string, handling nested structures.
+ * Finds the first { or [ and counts brackets to find the matching close.
+ */
+function extractJSON(text, type = 'object') {
+  const open = type === 'array' ? '[' : '{';
+  const close = type === 'array' ? ']' : '}';
+  const start = text.indexOf(open);
+  if (start === -1) return null;
+
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === open) depth++;
+    else if (text[i] === close) depth--;
+    if (depth === 0) {
+      try {
+        return JSON.parse(text.slice(start, i + 1));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Use Claude with web search to find companies matching ICP criteria.
  * Returns an array of company name strings.
  */
@@ -40,8 +65,8 @@ Return ONLY a JSON array of company names, no commentary. Example: ["Acme Corp",
   if (!textBlock) return [];
 
   try {
-    const match = textBlock.text.match(/\[[\s\S]*\]/);
-    return match ? JSON.parse(match[0]) : [];
+    const result = extractJSON(textBlock.text, 'array');
+    return result || [];
   } catch {
     return [];
   }
@@ -94,8 +119,8 @@ Return ONLY the JSON, no other text.`;
   }
 
   try {
-    const match = textBlock.text.match(/\{[\s\S]*\}/);
-    return match ? JSON.parse(match[0]) : { hiring_signals: '', keywords: '', signal_strength: 'Low', careers_page: '', details: '' };
+    const result = extractJSON(textBlock.text, 'object');
+    return result || { hiring_signals: '', keywords: '', signal_strength: 'Low', careers_page: '', details: '' };
   } catch {
     return { hiring_signals: textBlock.text.slice(0, 300), keywords: '', signal_strength: 'Low', careers_page: '', details: '' };
   }
@@ -135,8 +160,8 @@ Return ONLY the JSON.`;
   if (!textBlock) return { ats_found: '', sample_roles: '', job_count_estimate: 0 };
 
   try {
-    const match = textBlock.text.match(/\{[\s\S]*\}/);
-    return match ? JSON.parse(match[0]) : { ats_found: '', sample_roles: '', job_count_estimate: 0 };
+    const result = extractJSON(textBlock.text, 'object');
+    return result || { ats_found: '', sample_roles: '', job_count_estimate: 0 };
   } catch {
     return { ats_found: '', sample_roles: '', job_count_estimate: 0 };
   }
