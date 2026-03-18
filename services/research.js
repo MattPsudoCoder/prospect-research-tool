@@ -23,6 +23,46 @@ async function researchCompany(companyName, source, icp) {
     bullhornResult = await bullhorn.checkCompany(companyName);
   }
 
+  // Build Bullhorn status string with actionable detail
+  let bullhornStatus = '';
+  let lastActivity = '';
+
+  if (bullhornResult.found) {
+    const parts = [bullhornResult.status];
+
+    // Flag vacancies and placements
+    if (bullhornResult.vacancies) {
+      const v = bullhornResult.vacancies;
+      if (v.total > 0) {
+        parts.push(`${v.total} vacancies (${v.open} open, latest: ${v.mostRecentDate})`);
+      } else {
+        parts.push('No vacancies');
+      }
+    }
+    if (bullhornResult.placements) {
+      const p = bullhornResult.placements;
+      if (p.total > 0) {
+        parts.push(`${p.total} placements (latest: ${p.mostRecentDate})`);
+      } else {
+        parts.push('No placements');
+      }
+    }
+    if (bullhornResult.leads) {
+      const l = bullhornResult.leads;
+      if (l.total > 0) {
+        parts.push(`${l.total} leads (${l.open} open)`);
+      }
+    }
+
+    // Surface negative signals prominently
+    if (bullhornResult.negativeSignals && bullhornResult.negativeSignals.length > 0) {
+      parts.push(`⚠ NEGATIVE: ${bullhornResult.negativeSignals.join(', ')}`);
+    }
+
+    bullhornStatus = parts.join(' | ');
+    lastActivity = bullhornResult.lastActivity || '';
+  }
+
   return {
     name: companyName,
     source,
@@ -32,8 +72,8 @@ async function researchCompany(companyName, source, icp) {
     keywords: signals.keywords || '',
     signal_strength: signals.signal_strength || 'Low',
     in_bullhorn: bullhornResult.found || false,
-    bullhorn_status: bullhornResult.status || '',
-    last_activity: bullhornResult.lastActivity || '',
+    bullhorn_status: bullhornStatus,
+    last_activity: lastActivity,
     raw_research: {
       signals,
       ats: atsResult,

@@ -66,9 +66,22 @@ async function authenticate() {
   return tokenCache;
 }
 
+// Note types to ignore (mass outreach, not meaningful BD activity)
+const IGNORED_NOTE_ACTIONS = ['mailshot', 'mass email', 'bulk email', 'mass mail', 'email blast'];
+
+// Phrases that indicate negative client signals
+const NEGATIVE_SIGNAL_PHRASES = [
+  'not interested', 'do not contact', 'do not call', 'dnc',
+  'no longer hiring', 'hiring freeze', 'not looking to work with',
+  'declined', 'rejected', 'no recruitment agencies', 'no agencies',
+  'psc only', 'internal only', 'preferred supplier', 'not on psl',
+  'bad experience', 'complaint', 'do not approach', 'blacklist',
+  'cease contact', 'unsubscribe', 'opt out', 'removed from list',
+];
+
 /**
  * Search Bullhorn for a company by name.
- * Returns { found, id, name, status, dateAdded, owner, lastActivity } or { found: false }
+ * Returns deep activity data: vacancies, placements, recent notes, negative signals.
  */
 async function checkCompany(companyName) {
   try {
@@ -84,35 +97,162 @@ async function checkCompany(companyName) {
     }
 
     const corp = searchData.data[0];
+    const corpId = corp.id;
 
-    // Get latest notes
-    let lastActivity = '';
-    try {
-      const notesUrl = `${restUrl}entity/ClientCorporation/${corp.id}/allCorpNotes?fields=action,dateAdded&count=1&orderBy=-dateAdded&BhRestToken=${accessToken}`;
-      const notesRes = await fetch(notesUrl);
-      const notesData = await notesRes.json();
-      if (notesData.data && notesData.data.length > 0) {
-        const note = notesData.data[0];
-        const date = new Date(note.dateAdded);
-        lastActivity = date.toISOString().split('T')[0];
-      }
-    } catch {
-      // Notes fetch failed — non-critical
-    }
+    // Run all lookups in parallel
+    const [notesData, vacancyData, placementData, leadsData] = await Promise.all([
+      fetchNotes(restUrl, accessToken, corpId),
+      fetchVacancies(restUrl, accessToken, corpId),
+      fetchPlacements(restUrl, accessToken, corpId),
+      fetchLeads(restUrl, accessToken, corpId),
+    ]);
+
+    // Analyse notes for meaningful activity and negative signals
+    const { recentNotes, lastMeaningfulActivity, negativeSignals } = analyseNotes(notesData);
+
+    // Build status summary
+    const statusParts = [corp.status || 'Unknown'];
+    if (vacancyData.total > 0) statusParts.push(`${vacancyData.total} vacancies (${vacancyData.open} open)`);
+    if (placementData.total > 0) statusParts.push(`${placementData.total} placements`);
+    if (negativeSignals.length > 0) statusParts.push(`WARNING: ${negativeSignals.join('; ')}`);
 
     return {
       found: true,
-      id: corp.id,
+      id: corpId,
       name: corp.name,
-      status: corp.status || 'Unknown',
+      status: statusParts.join(' | '),
       dateAdded: corp.dateAdded ? new Date(corp.dateAdded).toISOString().split('T')[0] : '',
       owner: corp.owner ? `${corp.owner.firstName} ${corp.owner.lastName}` : '',
-      lastActivity,
+      lastActivity: lastMeaningfulActivity,
+      vacancies: vacancyData,
+      placements: placementData,
+      leads: leadsData,
+      recentNotes,
+      negativeSignals,
     };
   } catch (err) {
     console.error(`Bullhorn check failed for "${companyName}":`, err.message);
     return { found: false, error: err.message };
   }
+}
+
+/**
+ * Fetch recent notes for a company, excluding mailshots/mass emails.
+ */
+async function fetchNotes(restUrl, token, corpId) {
+  try {
+    const url = `${restUrl}entity/ClientCorporation/${corpId}/allCorpNotes?fields=action,dateAdded,comments,personReference&count=50&orderBy=-dateAdded&BhRestToken=${token}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.data || []);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch vacancy (job order) counts and recent activity.
+ */
+async function fetchVacancies(restUrl, token, corpId) {
+  try {
+    const url = `${restUrl}query/JobOrder?where=clientCorporation.id=${corpId}&fields=id,title,status,dateAdded&count=100&orderBy=-dateAdded&BhRestToken=${token}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const vacancies = data.data || [];
+    const open = vacancies.filter(v => v.status === 'Open' || v.status === 'Accepting Candidates').length;
+    const mostRecent = vacancies[0];
+    return {
+      total: vacancies.length,
+      open,
+      mostRecentDate: mostRecent ? new Date(mostRecent.dateAdded).toISOString().split('T')[0] : '',
+      mostRecentTitle: mostRecent ? mostRecent.title : '',
+    };
+  } catch {
+    return { total: 0, open: 0, mostRecentDate: '', mostRecentTitle: '' };
+  }
+}
+
+/**
+ * Fetch placement counts and recent activity.
+ */
+async function fetchPlacements(restUrl, token, corpId) {
+  try {
+    const url = `${restUrl}query/Placement?where=jobOrder.clientCorporation.id=${corpId}&fields=id,status,dateAdded,jobOrder&count=100&orderBy=-dateAdded&BhRestToken=${token}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const placements = data.data || [];
+    const active = placements.filter(p => p.status === 'Active' || p.status === 'Approved').length;
+    const mostRecent = placements[0];
+    return {
+      total: placements.length,
+      active,
+      mostRecentDate: mostRecent ? new Date(mostRecent.dateAdded).toISOString().split('T')[0] : '',
+    };
+  } catch {
+    return { total: 0, active: 0, mostRecentDate: '' };
+  }
+}
+
+/**
+ * Fetch lead counts for a company.
+ */
+async function fetchLeads(restUrl, token, corpId) {
+  try {
+    const url = `${restUrl}query/Lead?where=clientCorporation.id=${corpId}&fields=id,status,dateAdded&count=100&orderBy=-dateAdded&BhRestToken=${token}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const leads = data.data || [];
+    const open = leads.filter(l => l.status === 'Open').length;
+    return {
+      total: leads.length,
+      open,
+      mostRecentDate: leads[0] ? new Date(leads[0].dateAdded).toISOString().split('T')[0] : '',
+    };
+  } catch {
+    return { total: 0, open: 0, mostRecentDate: '' };
+  }
+}
+
+/**
+ * Analyse notes for meaningful activity and negative signals.
+ * Filters out mailshots/mass emails. Scans for negative client sentiment.
+ */
+function analyseNotes(notes) {
+  const negativeSignals = [];
+  const meaningfulNotes = [];
+
+  for (const note of notes) {
+    const action = (note.action || '').toLowerCase();
+    const comments = (note.comments || '').toLowerCase();
+
+    // Skip mailshots and mass emails
+    if (IGNORED_NOTE_ACTIONS.some(ignored => action.includes(ignored))) continue;
+
+    // Check for negative signals in comments
+    for (const phrase of NEGATIVE_SIGNAL_PHRASES) {
+      if (comments.includes(phrase) && !negativeSignals.includes(phrase)) {
+        negativeSignals.push(phrase);
+      }
+    }
+
+    meaningfulNotes.push({
+      action: note.action || '',
+      date: note.dateAdded ? new Date(note.dateAdded).toISOString().split('T')[0] : '',
+      snippet: (note.comments || '').slice(0, 150),
+      person: note.personReference
+        ? `${note.personReference.firstName || ''} ${note.personReference.lastName || ''}`.trim()
+        : '',
+    });
+  }
+
+  // Most recent meaningful note date
+  const lastMeaningfulActivity = meaningfulNotes.length > 0 ? meaningfulNotes[0].date : '';
+
+  return {
+    recentNotes: meaningfulNotes.slice(0, 10), // Top 10 meaningful notes
+    lastMeaningfulActivity,
+    negativeSignals,
+  };
 }
 
 /**

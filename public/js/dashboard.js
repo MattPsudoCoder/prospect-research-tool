@@ -110,9 +110,12 @@ async function loadResults(runId) {
           <div class="result-card-meta">
             <span><strong>Source:</strong> ${esc(c.source)}</span>
             <span><strong>ATS:</strong> ${esc(c.ats_detected)}</span>
-            ${c.bullhorn_status ? `<span><strong>Bullhorn:</strong> ${esc(c.bullhorn_status)}</span>` : ''}
-            ${c.last_activity ? `<span><strong>Last Activity:</strong> ${esc(c.last_activity)}</span>` : ''}
+            ${c.last_activity ? `<span><strong>Last BD Activity:</strong> ${esc(c.last_activity)}</span>` : ''}
           </div>
+          ${c.bullhorn_status ? `<div class="result-field bullhorn-detail">
+            <label>Bullhorn Status</label>
+            <p>${esc(c.bullhorn_status).replace(/\|/g, '<br>')}</p>
+          </div>` : ''}
           <div class="result-card-body">
             <div class="result-field">
               <label>Roles Found</label>

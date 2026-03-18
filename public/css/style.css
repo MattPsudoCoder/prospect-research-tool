@@ -319,6 +319,14 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   word-break: break-word;
 }
 
+.bullhorn-detail {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: #f8f9fb;
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+}
+
 @media (max-width: 900px) {
   .result-card-body {
     grid-template-columns: 1fr;
