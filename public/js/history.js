@@ -46,7 +46,7 @@ async function loadHistory() {
 
 async function viewRun(runId, name) {
   detailTitle.textContent = name || 'Run Details';
-  detailBody.innerHTML = '<tr><td colspan="10">Loading...</td></tr>';
+  detailBody.innerHTML = '<div class="empty-state">Loading...</div>';
   detailOverlay.classList.remove('hidden');
 
   try {
@@ -55,28 +55,46 @@ async function viewRun(runId, name) {
 
     detailBody.innerHTML = '';
     if (companies.length === 0) {
-      detailBody.innerHTML = '<tr><td colspan="10" class="empty-state">No results.</td></tr>';
+      detailBody.innerHTML = '<div class="empty-state">No results.</div>';
       return;
     }
 
     companies.forEach((c) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td title="${esc(c.name)}">${esc(c.name)}</td>
-        <td>${esc(c.source)}</td>
-        <td>${esc(c.ats_detected)}</td>
-        <td title="${esc(c.roles_found)}">${esc(c.roles_found)}</td>
-        <td title="${esc(c.hiring_signals)}">${esc(c.hiring_signals)}</td>
-        <td>${esc(c.keywords)}</td>
-        <td>${signalBadge(c.signal_strength)}</td>
-        <td>${bullhornBadge(c.in_bullhorn)}</td>
-        <td>${esc(c.bullhorn_status)}</td>
-        <td>${esc(c.last_activity)}</td>
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.innerHTML = `
+        <div class="result-card-header">
+          <h3>${esc(c.name)}</h3>
+          <div class="result-card-badges">
+            ${signalBadge(c.signal_strength)}
+            ${bullhornBadge(c.in_bullhorn)}
+          </div>
+        </div>
+        <div class="result-card-meta">
+          <span><strong>Source:</strong> ${esc(c.source)}</span>
+          <span><strong>ATS:</strong> ${esc(c.ats_detected)}</span>
+          ${c.bullhorn_status ? `<span><strong>Bullhorn:</strong> ${esc(c.bullhorn_status)}</span>` : ''}
+          ${c.last_activity ? `<span><strong>Last Activity:</strong> ${esc(c.last_activity)}</span>` : ''}
+        </div>
+        <div class="result-card-body">
+          <div class="result-field">
+            <label>Roles Found</label>
+            <p>${esc(c.roles_found) || '<em>None detected</em>'}</p>
+          </div>
+          <div class="result-field">
+            <label>Hiring Signals</label>
+            <p>${esc(c.hiring_signals) || '<em>None detected</em>'}</p>
+          </div>
+          <div class="result-field">
+            <label>Keywords</label>
+            <p>${esc(c.keywords) || '<em>None</em>'}</p>
+          </div>
+        </div>
       `;
-      detailBody.appendChild(tr);
+      detailBody.appendChild(card);
     });
   } catch (err) {
-    detailBody.innerHTML = '<tr><td colspan="10">Error loading results.</td></tr>';
+    detailBody.innerHTML = '<div class="empty-state">Error loading results.</div>';
   }
 }
 
