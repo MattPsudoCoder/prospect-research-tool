@@ -70,7 +70,7 @@ body {
   margin-left: 220px;
   padding: 32px 40px;
   flex: 1;
-  max-width: 1200px;
+  max-width: 1600px;
 }
 
 header { margin-bottom: 28px; }
@@ -214,7 +214,7 @@ th, td {
   text-align: left;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  white-space: nowrap;
+  vertical-align: top;
 }
 th {
   font-weight: 600;
@@ -225,8 +225,20 @@ th {
   background: var(--bg);
   position: sticky;
   top: 0;
+  white-space: nowrap;
 }
-td { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+/* Short columns stay tight */
+td:nth-child(1) { min-width: 140px; max-width: 180px; font-weight: 600; }  /* Company Name */
+td:nth-child(2) { white-space: nowrap; }  /* Source */
+td:nth-child(3) { white-space: nowrap; }  /* ATS Detected */
+/* Text-heavy columns wrap and breathe */
+td:nth-child(4) { min-width: 200px; }  /* Roles Found */
+td:nth-child(5) { min-width: 250px; }  /* Hiring Signals */
+td:nth-child(6) { min-width: 160px; }  /* Keywords */
+td:nth-child(7) { white-space: nowrap; }  /* Signal Strength */
+td:nth-child(8) { white-space: nowrap; }  /* In Bullhorn */
+td:nth-child(9) { white-space: nowrap; }  /* Bullhorn Status */
+td:nth-child(10) { white-space: nowrap; } /* Last Activity */
 tr:hover td { background: rgba(79,110,247,0.03); }
 
 /* Signal badges */
