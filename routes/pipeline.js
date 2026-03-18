@@ -115,6 +115,11 @@ async function processCompanies(runId, companies, icp) {
   for (let i = 0; i < companies.length; i++) {
     const { name, source } = companies[i];
 
+    // Delay between API calls to avoid Claude API rate limits (skip first)
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 8000));
+    }
+
     try {
       const result = await researchCompany(name, source, icp);
 
