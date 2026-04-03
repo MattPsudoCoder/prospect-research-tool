@@ -128,9 +128,14 @@ Return ONLY the JSON, no other text.`;
 
 /**
  * Use Claude with web search to check Ashby, careers pages, and fallback ATS platforms.
+ * Filters results to only include ICP-relevant engineering/tech roles.
  */
-async function searchATSFallback(companyName) {
+async function searchATSFallback(companyName, icp) {
   const anthropic = getClient();
+
+  const roleFilter = icp?.role_types
+    ? `\n\nIMPORTANT: Only include roles relevant to a technical recruiter who places: ${icp.role_types}. Do NOT include sales, marketing, finance, HR, operations, customer success, account executive, or other non-technical roles. If none of the open roles match, return empty sample_roles.`
+    : '\n\nIMPORTANT: Only include software engineering and technical roles. Do NOT include sales, marketing, finance, HR, operations, or other non-technical roles.';
 
   const prompt = `Search for job postings from "${companyName}" on these platforms:
 1. Ashby (jobs.ashbyhq.com/${companyName.toLowerCase().replace(/\s+/g, '')})
@@ -138,12 +143,12 @@ async function searchATSFallback(companyName) {
 3. SmartRecruiters (jobs.smartrecruiters.com)
 4. Teamtailor
 5. Google for Jobs — search: "${companyName} careers jobs"
-6. Their own careers page
+6. Their own careers page${roleFilter}
 
 Return a JSON object:
 {
   "ats_found": "name of ATS platform found, or empty string",
-  "sample_roles": "up to 5 role titles comma-separated, or empty string",
+  "sample_roles": "up to 5 RELEVANT role titles comma-separated, or empty string",
   "job_count_estimate": 0
 }
 

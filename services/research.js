@@ -11,10 +11,10 @@ const ats = require('./ats');
  * Returns a flat result object suitable for the output table.
  */
 async function researchCompany(companyName, source, icp) {
-  // Run research and ATS detection in parallel
+  // Run research and ATS detection in parallel (ICP passed to both)
   const [signals, atsResult] = await Promise.all([
     claude.researchCompany(companyName, icp),
-    ats.detectATS(companyName),
+    ats.detectATS(companyName, icp),
   ]);
 
   return {
