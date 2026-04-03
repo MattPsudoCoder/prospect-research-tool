@@ -74,6 +74,7 @@ function renderProspects() {
         <div class="result-card-badges">
           ${signalBadge(c.signal_strength)}
           <span class="badge badge-source">${esc(c.source)}</span>
+          <button class="btn btn-primary btn-sm btn-track" data-id="${c.id}" title="Move to Tracker">Track</button>
           <button class="btn btn-danger btn-sm btn-delete" data-id="${c.id}" title="Remove prospect">Remove</button>
         </div>
       </div>
@@ -99,10 +100,44 @@ function renderProspects() {
     prospectsList.appendChild(card);
   });
 
-  // Attach delete handlers
+  // Attach button handlers
+  prospectsList.querySelectorAll('.btn-track').forEach((btn) => {
+    btn.addEventListener('click', () => trackProspect(parseInt(btn.dataset.id)));
+  });
   prospectsList.querySelectorAll('.btn-delete').forEach((btn) => {
     btn.addEventListener('click', () => deleteProspect(parseInt(btn.dataset.id)));
   });
+}
+
+async function trackProspect(companyId) {
+  const company = allProspects.find((c) => c.id === companyId);
+  if (!company) return;
+  const btn = prospectsList.querySelector(`.btn-track[data-id="${companyId}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const res = await fetch('/api/tracker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_id: company.id,
+        name: company.name,
+        ats_detected: company.ats_detected,
+        roles_found: company.roles_found,
+        hiring_signals: company.hiring_signals,
+        keywords: company.keywords,
+        signal_strength: company.signal_strength,
+      }),
+    });
+    if (res.status === 409) {
+      if (btn) { btn.textContent = 'Tracked'; btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
+      return;
+    }
+    if (!res.ok) throw new Error('Failed');
+    if (btn) { btn.textContent = 'Tracked'; btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
+  } catch (err) {
+    alert('Failed to track: ' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Track'; }
+  }
 }
 
 async function deleteProspect(companyId) {

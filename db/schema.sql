@@ -42,6 +42,21 @@ CREATE TABLE IF NOT EXISTS companies (
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+CREATE TABLE IF NOT EXISTS tracked_companies (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    ats_detected TEXT DEFAULT '',
+    roles_found TEXT DEFAULT '',
+    hiring_signals TEXT DEFAULT '',
+    keywords TEXT DEFAULT '',
+    signal_strength TEXT DEFAULT '',
+    status TEXT DEFAULT 'New',
+    notes TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
 -- Seed a default ICP row if none exists
 INSERT INTO icp_settings (industry_sector, company_size_min, company_size_max, geography, role_types)
 SELECT 'Technology', 50, 5000, 'United States', 'Software Engineer, Product Manager, Data Scientist'
