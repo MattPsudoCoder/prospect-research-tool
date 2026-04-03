@@ -21,7 +21,7 @@ async function researchCompany(companyName, source, icp) {
     name: companyName,
     source,
     ats_detected: atsResult.ats || 'None detected',
-    roles_found: atsResult.roles.join(', '),
+    roles_found: JSON.stringify(atsResult.roles),
     hiring_signals: signals.hiring_signals || '',
     keywords: signals.keywords || '',
     signal_strength: signals.signal_strength || 'Low',

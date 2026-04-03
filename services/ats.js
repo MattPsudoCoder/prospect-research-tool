@@ -79,12 +79,12 @@ async function checkGreenhouse(companyName, roleKeywords) {
     const jobs = data.jobs || [];
     if (jobs.length === 0) return null;
 
-    // Filter to ICP-relevant roles only
+    // Filter to ICP-relevant roles only, keep title + URL
     const relevant = jobs.filter((j) => isRelevantRole(j.title, roleKeywords));
 
     return {
       ats: 'Greenhouse',
-      roles: relevant.slice(0, 8).map((j) => j.title),
+      roles: relevant.slice(0, 8).map((j) => ({ title: j.title, url: j.absolute_url || '' })),
       count: jobs.length,
       relevant_count: relevant.length,
     };
@@ -106,12 +106,12 @@ async function checkLever(companyName, roleKeywords) {
     const jobs = await res.json();
     if (!Array.isArray(jobs) || jobs.length === 0) return null;
 
-    // Filter to ICP-relevant roles only
+    // Filter to ICP-relevant roles only, keep title + URL
     const relevant = jobs.filter((j) => isRelevantRole(j.text, roleKeywords));
 
     return {
       ats: 'Lever',
-      roles: relevant.slice(0, 8).map((j) => j.text),
+      roles: relevant.slice(0, 8).map((j) => ({ title: j.text, url: j.hostedUrl || '' })),
       count: jobs.length,
       relevant_count: relevant.length,
     };
@@ -139,9 +139,18 @@ async function detectATS(companyName, icp) {
   // Fallback: Claude web search for other ATS platforms
   const fallback = await claude.searchATSFallback(companyName, icp);
   if (fallback.ats_found) {
+    // sample_roles may be array of {title, url} objects or legacy comma string
+    let roles = [];
+    if (Array.isArray(fallback.sample_roles)) {
+      roles = fallback.sample_roles.map((r) =>
+        typeof r === 'string' ? { title: r.trim(), url: '' } : { title: r.title || '', url: r.url || '' }
+      );
+    } else if (typeof fallback.sample_roles === 'string' && fallback.sample_roles) {
+      roles = fallback.sample_roles.split(',').map((r) => ({ title: r.trim(), url: '' }));
+    }
     return {
       ats: fallback.ats_found,
-      roles: fallback.sample_roles ? fallback.sample_roles.split(',').map((r) => r.trim()) : [],
+      roles,
       count: fallback.job_count_estimate || 0,
       relevant_count: fallback.job_count_estimate || 0,
     };

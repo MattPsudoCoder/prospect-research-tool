@@ -432,6 +432,16 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   color: #3367d6;
 }
 
+.role-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.role-link:hover {
+  text-decoration: underline;
+  color: var(--primary-hover);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar { width: 60px; padding: 16px 8px; }

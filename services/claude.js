@@ -148,11 +148,11 @@ async function searchATSFallback(companyName, icp) {
 Return a JSON object:
 {
   "ats_found": "name of ATS platform found, or empty string",
-  "sample_roles": "up to 5 RELEVANT role titles comma-separated, or empty string",
+  "sample_roles": [{"title": "Role Title", "url": "https://link-to-posting"}, ...],
   "job_count_estimate": 0
 }
 
-Return ONLY the JSON.`;
+Include up to 5 RELEVANT roles with direct links to the job posting. Return ONLY the JSON.`;
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',

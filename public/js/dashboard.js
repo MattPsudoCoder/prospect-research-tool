@@ -119,7 +119,7 @@ async function loadResults(runId) {
           <div class="result-card-body">
             <div class="result-field">
               <label>Roles Found</label>
-              <p>${esc(c.roles_found) || '<em>None detected</em>'}</p>
+              <p>${formatRoles(c.roles_found)}</p>
             </div>
             <div class="result-field">
               <label>Hiring Signals</label>
@@ -156,6 +156,26 @@ function bullhornBadge(inBullhorn) {
   return inBullhorn
     ? '<span class="badge badge-yes">Yes</span>'
     : '<span class="badge badge-no">No</span>';
+}
+
+function formatRoles(rolesStr) {
+  if (!rolesStr) return '<em>None detected</em>';
+  try {
+    const roles = JSON.parse(rolesStr);
+    if (Array.isArray(roles) && roles.length > 0) {
+      return roles.map((r) => {
+        if (typeof r === 'object' && r.title) {
+          return r.url
+            ? `<a href="${esc(r.url)}" target="_blank" rel="noopener" class="role-link">${esc(r.title)}</a>`
+            : esc(r.title);
+        }
+        return esc(String(r));
+      }).join(', ');
+    }
+  } catch {
+    // Legacy comma-separated string
+  }
+  return esc(rolesStr) || '<em>None detected</em>';
 }
 
 function esc(str) {
