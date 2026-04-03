@@ -62,6 +62,16 @@ router.delete('/cleanup/errors', async (req, res) => {
   }
 });
 
+// DELETE a single company by ID (from prospects list)
+router.delete('/company/:companyId', async (req, res) => {
+  try {
+    const result = await db.query('DELETE FROM companies WHERE id = $1', [req.params.companyId]);
+    res.json({ success: true, deleted: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE a run and its results
 router.delete('/:runId', async (req, res) => {
   try {

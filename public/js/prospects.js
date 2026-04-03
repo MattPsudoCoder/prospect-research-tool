@@ -74,6 +74,7 @@ function renderProspects() {
         <div class="result-card-badges">
           ${signalBadge(c.signal_strength)}
           <span class="badge badge-source">${esc(c.source)}</span>
+          <button class="btn btn-danger btn-sm btn-delete" data-id="${c.id}" title="Remove prospect">Remove</button>
         </div>
       </div>
       <div class="result-card-meta">
@@ -97,6 +98,22 @@ function renderProspects() {
     `;
     prospectsList.appendChild(card);
   });
+
+  // Attach delete handlers
+  prospectsList.querySelectorAll('.btn-delete').forEach((btn) => {
+    btn.addEventListener('click', () => deleteProspect(parseInt(btn.dataset.id)));
+  });
+}
+
+async function deleteProspect(companyId) {
+  if (!confirm('Remove this company from prospects?')) return;
+  try {
+    await fetch(`/api/history/company/${companyId}`, { method: 'DELETE' });
+    allProspects = allProspects.filter((c) => c.id !== companyId);
+    renderProspects();
+  } catch (err) {
+    alert('Failed to delete: ' + err.message);
+  }
 }
 
 // Filter event listeners
