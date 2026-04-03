@@ -109,20 +109,55 @@ router.post(
 );
 
 /**
+ * Check if a research result contains valid data (not an API error).
+ */
+function isValidResult(result) {
+  const signals = result.hiring_signals || '';
+  if (signals.startsWith('Error:')) return false;
+  if (signals.includes('rate_limit_error')) return false;
+  if (signals.includes('"type":"error"')) return false;
+  if (!signals && !result.ats_detected && !result.roles_found) return false;
+  return true;
+}
+
+/**
  * Process companies sequentially (to manage API rate limits).
+ * Retries once on rate-limit errors after a longer cooldown.
+ * Skips saving bad/error data entirely.
  */
 async function processCompanies(runId, companies, icp) {
+  let skipped = 0;
+
   for (let i = 0; i < companies.length; i++) {
     const { name, source } = companies[i];
 
     // Delay between API calls to avoid Claude API rate limits (skip first)
     if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 8000));
+      await new Promise((resolve) => setTimeout(resolve, 10000));
     }
 
-    try {
-      const result = await researchCompany(name, source, icp);
+    let result = null;
 
+    try {
+      result = await researchCompany(name, source, icp);
+    } catch (err) {
+      console.error(`Research failed for "${name}":`, err.message);
+    }
+
+    // If result is bad (rate limit, error), retry once after a longer wait
+    if (!result || !isValidResult(result)) {
+      console.log(`Retrying "${name}" after 30s cooldown...`);
+      await new Promise((resolve) => setTimeout(resolve, 30000));
+      try {
+        result = await researchCompany(name, source, icp);
+      } catch (err) {
+        console.error(`Retry also failed for "${name}":`, err.message);
+        result = null;
+      }
+    }
+
+    // Only save valid results — never save error data
+    if (result && isValidResult(result)) {
       await db.query(
         `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity, raw_research)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
@@ -133,14 +168,9 @@ async function processCompanies(runId, companies, icp) {
           result.last_activity, JSON.stringify(result.raw_research),
         ]
       );
-    } catch (err) {
-      // Insert a row even if research fails, so we don't lose the company
-      console.error(`Research failed for "${name}":`, err.message);
-      await db.query(
-        `INSERT INTO companies (run_id, name, source, hiring_signals, signal_strength)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [runId, name, source, `Error: ${err.message}`, 'Low']
-      );
+    } else {
+      skipped++;
+      console.warn(`Skipped "${name}" — no valid data after retry.`);
     }
 
     // Update progress
@@ -160,6 +190,10 @@ async function processCompanies(runId, companies, icp) {
   );
   if (activeRuns.has(runId)) {
     activeRuns.get(runId).status = 'completed';
+  }
+
+  if (skipped > 0) {
+    console.warn(`Pipeline run ${runId} completed with ${skipped} skipped companies (API errors).`);
   }
 }
 

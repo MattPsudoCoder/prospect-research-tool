@@ -19,7 +19,7 @@ app.use('/api/pipeline', require('./routes/pipeline'));
 app.use('/api/history', require('./routes/history'));
 
 // SPA fallback — serve index.html for page routes
-const pages = ['/', '/icp', '/history'];
+const pages = ['/', '/icp', '/history', '/prospects'];
 pages.forEach((route) => {
   app.get(route, (req, res) => {
     const page = route === '/' ? 'index' : route.slice(1);

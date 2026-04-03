@@ -27,6 +27,41 @@ router.get('/:runId/results', async (req, res) => {
   }
 });
 
+// GET all valid prospects across all runs (deduped, best result per company)
+router.get('/prospects', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT DISTINCT ON (LOWER(name)) *
+      FROM companies
+      WHERE hiring_signals NOT LIKE 'Error:%'
+        AND hiring_signals NOT LIKE '%rate_limit_error%'
+        AND hiring_signals NOT LIKE '%"type":"error"%'
+        AND (hiring_signals != '' OR ats_detected != '' OR roles_found != '')
+      ORDER BY LOWER(name),
+        CASE signal_strength WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END,
+        created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE error rows from all runs
+router.delete('/cleanup/errors', async (req, res) => {
+  try {
+    const result = await db.query(`
+      DELETE FROM companies
+      WHERE hiring_signals LIKE 'Error:%'
+        OR hiring_signals LIKE '%rate_limit_error%'
+        OR hiring_signals LIKE '%"type":"error"%'
+    `);
+    res.json({ success: true, deleted: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE a run and its results
 router.delete('/:runId', async (req, res) => {
   try {

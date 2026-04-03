@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prospect Research — Prospects</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="logo">Prospect<span>Research</span></div>
+    <a href="/" class="nav-link">Dashboard</a>
+    <a href="/prospects" class="nav-link active">Prospects</a>
+    <a href="/icp" class="nav-link">ICP Settings</a>
+    <a href="/history" class="nav-link">History</a>
+  </nav>
+
+  <main class="content">
+    <header>
+      <div class="prospects-header">
+        <div>
+          <h1>Prospects</h1>
+          <p class="subtitle">All valid companies across every pipeline run — deduplicated, best result per company.</p>
+        </div>
+        <div class="prospects-actions">
+          <button id="cleanupBtn" class="btn btn-secondary" title="Remove error rows from database">Cleanup Errors</button>
+          <button id="exportBtn" class="btn btn-primary">Export CSV</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Filter bar -->
+    <div class="card filter-bar">
+      <div class="filter-row">
+        <div class="form-group filter-group">
+          <label for="filterSignal">Signal Strength</label>
+          <select id="filterSignal">
+            <option value="">All</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+        <div class="form-group filter-group">
+          <label for="filterSource">Source</label>
+          <select id="filterSource">
+            <option value="">All</option>
+          </select>
+        </div>
+        <div class="form-group filter-group filter-search">
+          <label for="filterSearch">Search</label>
+          <input type="text" id="filterSearch" placeholder="Company name, role, keyword...">
+        </div>
+      </div>
+      <p id="resultCount" class="result-count"></p>
+    </div>
+
+    <!-- Prospects list -->
+    <div id="prospectsList" class="results-grid">
+      <div class="empty-state"><p>Loading prospects...</p></div>
+    </div>
+  </main>
+
+  <script src="/js/prospects.js"></script>
+</body>
+</html>
