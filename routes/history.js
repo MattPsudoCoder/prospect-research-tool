@@ -18,7 +18,8 @@ router.get('/', async (req, res) => {
 router.get('/:runId/results', async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT * FROM companies WHERE run_id = $1 ORDER BY signal_strength DESC, name ASC',
+      `SELECT * FROM companies WHERE run_id = $1
+     ORDER BY CASE signal_strength WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END, name ASC`,
       [req.params.runId]
     );
     res.json(result.rows);

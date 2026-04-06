@@ -271,7 +271,8 @@ router.get('/:runId/export', async (req, res) => {
   const { stringify } = require('csv-stringify/sync');
   try {
     const result = await db.query(
-      'SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength FROM companies WHERE run_id = $1 ORDER BY signal_strength DESC',
+      `SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength FROM companies WHERE run_id = $1
+       ORDER BY CASE signal_strength WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END`,
       [req.params.runId]
     );
 
