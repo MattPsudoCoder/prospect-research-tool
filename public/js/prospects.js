@@ -128,12 +128,11 @@ async function trackProspect(companyId) {
         signal_strength: company.signal_strength,
       }),
     });
-    if (res.status === 409) {
-      if (btn) { btn.textContent = 'Tracked'; btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
-      return;
-    }
-    if (!res.ok) throw new Error('Failed');
-    if (btn) { btn.textContent = 'Tracked'; btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
+    if (!res.ok && res.status !== 409) throw new Error('Failed');
+    // Dismiss from prospects after tracking
+    await fetch(`/api/history/company/${companyId}`, { method: 'DELETE' });
+    allProspects = allProspects.filter((c) => c.id !== companyId);
+    renderProspects();
   } catch (err) {
     alert('Failed to track: ' + err.message);
     if (btn) { btn.disabled = false; btn.textContent = 'Track'; }
