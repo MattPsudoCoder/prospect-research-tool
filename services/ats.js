@@ -35,33 +35,43 @@ const DEFAULT_ROLE_KEYWORDS = [
 ];
 
 /**
- * Build a list of filter keywords from ICP role_types string.
- * Splits on commas, extracts meaningful words, dedupes.
+ * Build a list of filter phrases from ICP role_types string.
+ * Uses full phrases (e.g. "engineering manager") — never splits into
+ * individual words like "manager" which would match too broadly.
  */
 function buildRoleKeywords(icp) {
   if (!icp?.role_types) return DEFAULT_ROLE_KEYWORDS;
 
-  const words = new Set(DEFAULT_ROLE_KEYWORDS);
+  const phrases = new Set(DEFAULT_ROLE_KEYWORDS);
   const roles = icp.role_types.split(',').map((r) => r.trim().toLowerCase()).filter(Boolean);
 
-  // Add each full role phrase and individual meaningful words
   for (const role of roles) {
-    words.add(role);
-    // Also add individual words longer than 2 chars (skip "of", "a", etc.)
-    role.split(/\s+/).forEach((w) => {
-      if (w.length > 2 && !['the', 'and', 'for'].includes(w)) words.add(w);
-    });
+    phrases.add(role);
   }
 
-  return [...words];
+  return [...phrases];
 }
 
 /**
+ * Short keywords that must match as whole words to avoid false positives
+ * (e.g. "cto" matching "Director", "sre" matching "Treasurer").
+ */
+const WHOLE_WORD_KEYWORDS = new Set(['cto', 'sre', 'qa', 'ios', 'go', 'ui', 'ux', 'ml', 'ai', 'sdet']);
+
+/**
  * Check if a job title is relevant to ICP role types.
+ * Matches against full phrases. Short acronyms (cto, sre, qa, etc.)
+ * are matched as whole words to avoid substring false positives.
  */
 function isRelevantRole(title, keywords) {
   const lower = title.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw));
+  return keywords.some((kw) => {
+    if (WHOLE_WORD_KEYWORDS.has(kw)) {
+      const re = new RegExp(`\\b${kw}\\b`);
+      return re.test(lower);
+    }
+    return lower.includes(kw);
+  });
 }
 
 /**
@@ -148,11 +158,13 @@ async function detectATS(companyName, icp) {
     } else if (typeof fallback.sample_roles === 'string' && fallback.sample_roles) {
       roles = fallback.sample_roles.split(',').map((r) => ({ title: r.trim(), url: '' }));
     }
+    // Filter fallback roles through the same ICP relevance check
+    const relevant = roles.filter((r) => isRelevantRole(r.title, roleKeywords));
     return {
       ats: fallback.ats_found,
-      roles,
+      roles: relevant,
       count: fallback.job_count_estimate || 0,
-      relevant_count: fallback.job_count_estimate || 0,
+      relevant_count: relevant.length,
     };
   }
 
