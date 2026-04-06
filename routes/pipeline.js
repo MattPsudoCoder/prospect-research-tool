@@ -179,12 +179,12 @@ async function processCompanies(runId, companies, icp) {
     // Only save valid results — never save error data
     if (result && isValidResult(result)) {
       await db.query(
-        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, raw_research)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, tech_stack, keywords, signal_strength, raw_research)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           runId, result.name, result.source, result.ats_detected,
-          result.roles_found, result.hiring_signals, result.keywords,
-          result.signal_strength, JSON.stringify(result.raw_research),
+          result.roles_found, result.hiring_signals, result.tech_stack || '',
+          result.keywords, result.signal_strength, JSON.stringify(result.raw_research),
         ]
       );
     } else {
@@ -271,7 +271,7 @@ router.get('/:runId/export', async (req, res) => {
   const { stringify } = require('csv-stringify/sync');
   try {
     const result = await db.query(
-      `SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength FROM companies WHERE run_id = $1
+      `SELECT name, source, ats_detected, roles_found, hiring_signals, tech_stack, keywords, signal_strength FROM companies WHERE run_id = $1
        ORDER BY CASE signal_strength WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END`,
       [req.params.runId]
     );
@@ -290,6 +290,7 @@ router.get('/:runId/export', async (req, res) => {
         { key: 'ats_detected', header: 'ATS Detected' },
         { key: 'roles_found', header: 'Roles Found' },
         { key: 'hiring_signals', header: 'Hiring Signals' },
+        { key: 'tech_stack', header: 'Tech Stack' },
         { key: 'keywords', header: 'Keywords' },
         { key: 'signal_strength', header: 'Signal Strength' },
       ],

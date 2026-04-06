@@ -92,8 +92,8 @@ function renderProspects() {
           <p>${esc(c.hiring_signals) || '<em>None detected</em>'}</p>
         </div>
         <div class="result-field">
-          <label>Keywords</label>
-          <p>${esc(c.keywords) || '<em>None</em>'}</p>
+          <label>Tech Stack</label>
+          <p>${esc(c.tech_stack) || '<em>Unknown</em>'}</p>
         </div>
       </div>
     `;
@@ -183,13 +183,14 @@ exportBtn.addEventListener('click', () => {
     return;
   }
 
-  const headers = ['Company Name', 'Source', 'ATS Detected', 'Roles Found', 'Hiring Signals', 'Keywords', 'Signal Strength'];
+  const headers = ['Company Name', 'Source', 'ATS Detected', 'Roles Found', 'Hiring Signals', 'Tech Stack', 'Keywords', 'Signal Strength'];
   const rows = allProspects.map((c) => [
     csvEsc(c.name),
     csvEsc(c.source),
     csvEsc(c.ats_detected),
     csvEsc(flattenRolesCSV(c.roles_found)),
     csvEsc(c.hiring_signals),
+    csvEsc(c.tech_stack),
     csvEsc(c.keywords),
     csvEsc(c.signal_strength),
   ]);

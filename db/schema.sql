@@ -71,6 +71,9 @@ CREATE TABLE IF NOT EXISTS tracked_contacts (
     updated_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+-- Migration: add tech_stack column
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS tech_stack TEXT DEFAULT '';
+
 -- Migration: add dismissed column for soft-delete on prospects
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS dismissed BOOLEAN DEFAULT FALSE;
 

@@ -22,6 +22,7 @@ async function researchCompany(companyName, source, icp) {
     ats_detected: atsResult.ats || 'None detected',
     roles_found: JSON.stringify(atsResult.roles),
     hiring_signals: signals.hiring_signals || '',
+    tech_stack: signals.tech_stack || '',
     keywords: signals.keywords || '',
     signal_strength: signals.signal_strength || 'Low',
     raw_research: { signals, ats: atsResult },

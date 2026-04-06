@@ -101,23 +101,27 @@ async function researchCompany(companyName, icp) {
     ? `\n6. Specifically look for these signals: ${icp.hiring_signals}`
     : '';
 
-  const prompt = `Research the company "${companyName}" for hiring and growth signals. Look for:
-1. Recent funding rounds or revenue milestones
-2. Executive or leadership hires
+  const prompt = `Research the company "${companyName}" for hiring and growth signals. Investigate:
+1. Recent funding rounds or revenue milestones (amount, date, investors)
+2. Executive or leadership hires (especially engineering/tech leaders)
 3. Office expansions or new locations
-4. Job posting velocity (are they posting lots of roles?)
-5. Any layoffs or freezes (negative signals)${signalContext}
+4. Job posting velocity (how many open engineering roles?)
+5. Any layoffs or freezes (negative signals)
+6. Tech stack — what languages, frameworks, and infrastructure do they use? Check their careers page job descriptions, engineering blog, or StackShare/GitHub for clues${signalContext}
 
 Also search for their careers page URL if you can find it.${roleContext}
 
 Return a JSON object with this exact structure:
 {
-  "hiring_signals": "brief summary of signals found",
-  "keywords": "comma-separated keywords like: funding, expansion, exec-hire, high-growth",
+  "hiring_signals": "Funding: $60M Series C (Sep 2024, led by Scale Ventures). Growth: expanding engineering team. Leadership: hired new VP Eng in Q1.",
+  "tech_stack": "Python, Go, React, TypeScript, AWS, Kubernetes, PostgreSQL",
+  "keywords": "series-c, high-growth, expanding-eng-team",
   "signal_strength": "High" or "Medium" or "Low",
   "careers_page": "URL or empty string",
   "details": "2-3 sentence summary"
 }
+
+For hiring_signals, use short labeled sections (Funding:, Growth:, Leadership:, Risk:) rather than one long paragraph. For tech_stack, list the specific languages, frameworks, databases, and cloud platforms — this is critical for matching candidates. If you can't determine the tech stack, return an empty string.
 
 Return ONLY the JSON, no other text.`;
 
