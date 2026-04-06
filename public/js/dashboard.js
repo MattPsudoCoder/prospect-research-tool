@@ -104,18 +104,12 @@ async function loadResults(runId) {
             <h3>${esc(c.name)}</h3>
             <div class="result-card-badges">
               ${signalBadge(c.signal_strength)}
-              ${bullhornBadge(c.in_bullhorn)}
             </div>
           </div>
           <div class="result-card-meta">
             <span><strong>Source:</strong> ${esc(c.source)}</span>
             <span><strong>ATS:</strong> ${esc(c.ats_detected)}</span>
-            ${c.last_activity ? `<span><strong>Last BD Activity:</strong> ${esc(c.last_activity)}</span>` : ''}
           </div>
-          ${c.bullhorn_status ? `<div class="result-field bullhorn-detail">
-            <label>Bullhorn Status</label>
-            <p>${esc(c.bullhorn_status).replace(/\|/g, '<br>')}</p>
-          </div>` : ''}
           <div class="result-card-body">
             <div class="result-field">
               <label>Roles Found</label>
@@ -150,12 +144,6 @@ exportBtn.addEventListener('click', () => {
 function signalBadge(strength) {
   const s = (strength || 'Low').toLowerCase();
   return `<span class="badge badge-${s}">${strength || 'Low'}</span>`;
-}
-
-function bullhornBadge(inBullhorn) {
-  return inBullhorn
-    ? '<span class="badge badge-yes">Yes</span>'
-    : '<span class="badge badge-no">No</span>';
 }
 
 function formatRoles(rolesStr) {

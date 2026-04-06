@@ -7,7 +7,6 @@ const ats = require('./ats');
 
 /**
  * Research one company: web signals + ATS detection.
- * Bullhorn checks are done manually via Chrome — not part of the automated pipeline.
  * Returns a flat result object suitable for the output table.
  */
 async function researchCompany(companyName, source, icp) {
@@ -25,14 +24,7 @@ async function researchCompany(companyName, source, icp) {
     hiring_signals: signals.hiring_signals || '',
     keywords: signals.keywords || '',
     signal_strength: signals.signal_strength || 'Low',
-    in_bullhorn: false,
-    bullhorn_status: '',
-    last_activity: '',
-    raw_research: {
-      signals,
-      ats: atsResult,
-      bullhorn: { found: false },
-    },
+    raw_research: { signals, ats: atsResult },
   };
 }
 

@@ -9,6 +9,26 @@ const claude = require('../services/claude');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
+/**
+ * Flatten roles JSON to readable CSV text.
+ * [{"title":"Engineer","url":"https://..."}] → "Engineer (https://...)"
+ */
+function flattenRoles(rolesStr) {
+  if (!rolesStr) return '';
+  try {
+    const roles = JSON.parse(rolesStr);
+    if (Array.isArray(roles)) {
+      return roles.map((r) => {
+        if (typeof r === 'object' && r.title) {
+          return r.url ? `${r.title} (${r.url})` : r.title;
+        }
+        return String(r);
+      }).join(', ');
+    }
+  } catch {}
+  return rolesStr;
+}
+
 // Active runs tracked in memory for SSE progress updates
 const activeRuns = new Map();
 
@@ -159,13 +179,12 @@ async function processCompanies(runId, companies, icp) {
     // Only save valid results — never save error data
     if (result && isValidResult(result)) {
       await db.query(
-        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity, raw_research)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, raw_research)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           runId, result.name, result.source, result.ats_detected,
           result.roles_found, result.hiring_signals, result.keywords,
-          result.signal_strength, result.in_bullhorn, result.bullhorn_status,
-          result.last_activity, JSON.stringify(result.raw_research),
+          result.signal_strength, JSON.stringify(result.raw_research),
         ]
       );
     } else {
@@ -252,11 +271,17 @@ router.get('/:runId/export', async (req, res) => {
   const { stringify } = require('csv-stringify/sync');
   try {
     const result = await db.query(
-      'SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity FROM companies WHERE run_id = $1 ORDER BY signal_strength DESC',
+      'SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength FROM companies WHERE run_id = $1 ORDER BY signal_strength DESC',
       [req.params.runId]
     );
 
-    const csv = stringify(result.rows, {
+    // Flatten roles JSON to readable text for CSV
+    const rows = result.rows.map((r) => ({
+      ...r,
+      roles_found: flattenRoles(r.roles_found),
+    }));
+
+    const csv = stringify(rows, {
       header: true,
       columns: [
         { key: 'name', header: 'Company Name' },
@@ -266,9 +291,6 @@ router.get('/:runId/export', async (req, res) => {
         { key: 'hiring_signals', header: 'Hiring Signals' },
         { key: 'keywords', header: 'Keywords' },
         { key: 'signal_strength', header: 'Signal Strength' },
-        { key: 'in_bullhorn', header: 'In Bullhorn' },
-        { key: 'bullhorn_status', header: 'Bullhorn Status' },
-        { key: 'last_activity', header: 'Last Activity' },
       ],
     });
 

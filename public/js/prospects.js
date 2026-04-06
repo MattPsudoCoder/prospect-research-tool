@@ -190,7 +190,7 @@ exportBtn.addEventListener('click', () => {
     csvEsc(c.name),
     csvEsc(c.source),
     csvEsc(c.ats_detected),
-    csvEsc(c.roles_found),
+    csvEsc(flattenRolesCSV(c.roles_found)),
     csvEsc(c.hiring_signals),
     csvEsc(c.keywords),
     csvEsc(c.signal_strength),
@@ -205,6 +205,22 @@ exportBtn.addEventListener('click', () => {
   a.click();
   URL.revokeObjectURL(url);
 });
+
+function flattenRolesCSV(rolesStr) {
+  if (!rolesStr) return '';
+  try {
+    const roles = JSON.parse(rolesStr);
+    if (Array.isArray(roles)) {
+      return roles.map((r) => {
+        if (typeof r === 'object' && r.title) {
+          return r.url ? `${r.title} (${r.url})` : r.title;
+        }
+        return String(r);
+      }).join(', ');
+    }
+  } catch {}
+  return rolesStr;
+}
 
 function csvEsc(val) {
   if (!val) return '""';

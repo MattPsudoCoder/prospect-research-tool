@@ -235,9 +235,6 @@ td:nth-child(4) { min-width: 200px; }  /* Roles Found */
 td:nth-child(5) { min-width: 250px; }  /* Hiring Signals */
 td:nth-child(6) { min-width: 160px; }  /* Keywords */
 td:nth-child(7) { white-space: nowrap; }  /* Signal Strength */
-td:nth-child(8) { white-space: nowrap; }  /* In Bullhorn */
-td:nth-child(9) { white-space: nowrap; }  /* Bullhorn Status */
-td:nth-child(10) { white-space: nowrap; } /* Last Activity */
 tr:hover td { background: rgba(79,110,247,0.03); }
 
 /* Signal badges */
@@ -317,14 +314,6 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   line-height: 1.5;
   margin: 0;
   word-break: break-word;
-}
-
-.bullhorn-detail {
-  margin-bottom: 14px;
-  padding: 10px 14px;
-  background: #f8f9fb;
-  border-left: 3px solid var(--primary);
-  border-radius: 4px;
 }
 
 @media (max-width: 900px) {
