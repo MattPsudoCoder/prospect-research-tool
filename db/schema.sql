@@ -71,6 +71,9 @@ CREATE TABLE IF NOT EXISTS tracked_contacts (
     updated_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+-- Migration: add dismissed column for soft-delete on prospects
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS dismissed BOOLEAN DEFAULT FALSE;
+
 -- Seed a default ICP row if none exists
 INSERT INTO icp_settings (industry_sector, company_size_min, company_size_max, geography, role_types)
 SELECT 'Technology', 50, 5000, 'United States', 'Software Engineer, Product Manager, Data Scientist'

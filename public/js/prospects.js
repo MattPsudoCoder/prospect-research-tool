@@ -141,13 +141,12 @@ async function trackProspect(companyId) {
 }
 
 async function deleteProspect(companyId) {
-  if (!confirm('Remove this company from prospects?')) return;
   try {
     await fetch(`/api/history/company/${companyId}`, { method: 'DELETE' });
     allProspects = allProspects.filter((c) => c.id !== companyId);
     renderProspects();
   } catch (err) {
-    alert('Failed to delete: ' + err.message);
+    alert('Failed to dismiss: ' + err.message);
   }
 }
 
