@@ -71,6 +71,29 @@ CREATE TABLE IF NOT EXISTS tracked_contacts (
     updated_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+-- v1.1 scoring columns on companies
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS score_overall NUMERIC(3,1) DEFAULT NULL;
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS score_details JSONB DEFAULT '{}';
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS recommendation TEXT DEFAULT '';
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS signal_types TEXT DEFAULT '';
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS gated_out BOOLEAN DEFAULT FALSE;
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS gate_reason TEXT DEFAULT '';
+
+-- v1.1 outreach templates on tracked_contacts
+ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS outreach_templates JSONB DEFAULT '{}';
+ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS step_updated_at TIMESTAMPTZ DEFAULT NULL;
+
+-- v1.1 activity log
+CREATE TABLE IF NOT EXISTS activity_log (
+    id SERIAL PRIMARY KEY,
+    tracked_contact_id INTEGER REFERENCES tracked_contacts(id) ON DELETE CASCADE,
+    bullhorn_contact_id INTEGER,
+    action TEXT NOT NULL,
+    details TEXT DEFAULT '',
+    synced_to_bullhorn BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Bullhorn sync columns on tracked_contacts
 ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS bullhorn_id INTEGER DEFAULT NULL;
 ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS bullhorn_synced_at TIMESTAMPTZ DEFAULT NULL;

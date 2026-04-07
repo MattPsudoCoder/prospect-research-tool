@@ -1,17 +1,17 @@
-/* Tracker page — companies + contacts with outreach step pipeline + Bullhorn sync */
+/* Tracker v1.1 — daily action board with Bullhorn sync + outreach templates */
 
 const trackerList = document.getElementById('trackerList');
 let bhConnected = false;
 
 const STEPS = [
-  { id: 0, label: 'Not started', channel: '', tip: '' },
-  { id: 1, label: '1. Connection request', channel: 'LinkedIn', tip: 'Warm the door — no pitch' },
-  { id: 2, label: '2a. Intro (accepted)', channel: 'LinkedIn', tip: 'Personalised opener + question' },
-  { id: 3, label: '2b. Intro (not accepted)', channel: 'LinkedIn', tip: 'Lead with relevance + CTA' },
-  { id: 4, label: '3. Spec-in email', channel: 'Email', tip: 'Put a specific profile in front of them' },
-  { id: 5, label: '4. Cold call + follow-up', channel: 'Phone/SMS', tip: 'Break through the inbox' },
-  { id: 6, label: '5. Value-add email', channel: 'Email', tip: 'Give before you ask again' },
-  { id: 7, label: '6. LinkedIn follow-up', channel: 'LinkedIn', tip: 'Soft close + market insight' },
+  { id: 0, label: 'Not started', channel: '', tip: '', actionKey: '' },
+  { id: 1, label: '1. Connection request', channel: 'LinkedIn', tip: 'Warm the door — no pitch', actionKey: 'step1_linkedin_connect' },
+  { id: 2, label: '2a. Intro (accepted)', channel: 'LinkedIn', tip: 'Personalised opener + question', actionKey: 'step2a_intro_accepted' },
+  { id: 3, label: '2b. Intro (not accepted)', channel: 'LinkedIn', tip: 'Lead with relevance + CTA', actionKey: 'step2b_intro_not_accepted' },
+  { id: 4, label: '3. Spec-in email', channel: 'Email', tip: 'Put a specific profile in front of them', actionKey: 'step3_email' },
+  { id: 5, label: '4. Cold call', channel: 'Phone/SMS', tip: 'Break through the inbox', actionKey: 'step4_call_script' },
+  { id: 6, label: '5. Value-add email', channel: 'Email', tip: 'Give before you ask again', actionKey: 'step5_email' },
+  { id: 7, label: '6. LinkedIn follow-up', channel: 'LinkedIn', tip: 'Soft close + market insight', actionKey: 'step6_linkedin' },
 ];
 
 /* ── Bullhorn connection bar ─────────────────────────────────── */
@@ -34,6 +34,7 @@ function renderBhBar(data) {
     bar.innerHTML = `
       <span class="bh-dot connected"></span>
       <span class="bh-label">Bullhorn connected (${esc(data.method)})</span>
+      <button class="btn-bh btn-sm" id="bhSyncDay" style="background:#27ae60">Sync Day to BH</button>
       <button class="btn btn-secondary btn-sm" id="bhDisconnect">Disconnect</button>
     `;
     document.getElementById('bhDisconnect').addEventListener('click', async () => {
@@ -41,6 +42,7 @@ function renderBhBar(data) {
       checkBhStatus();
       loadTracker();
     });
+    document.getElementById('bhSyncDay').addEventListener('click', syncDayToBullhorn);
   } else {
     bar.innerHTML = `
       <span class="bh-dot disconnected"></span>
@@ -54,25 +56,29 @@ function renderBhBar(data) {
     document.getElementById('bhConnect').addEventListener('click', async () => {
       const token = document.getElementById('bhToken').value.trim();
       const url = document.getElementById('bhRestUrl').value.trim();
-      if (!token || !url) { alert('Paste both BhRestToken and restUrl from Bullhorn localStorage'); return; }
+      if (!token || !url) { alert('Paste both BhRestToken and restUrl'); return; }
       try {
         const res = await fetch('/api/bullhorn/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ bhRestToken: token, restUrl: url }),
         });
         const data = await res.json();
-        if (data.connected) {
-          checkBhStatus();
-          loadTracker();
-        } else {
-          alert('Connection failed: ' + (data.error || 'unknown'));
-        }
-      } catch (err) {
-        alert('Connection failed: ' + err.message);
-      }
+        if (data.connected) { checkBhStatus(); loadTracker(); }
+        else alert('Connection failed: ' + (data.error || 'unknown'));
+      } catch (err) { alert('Connection failed: ' + err.message); }
     });
   }
+}
+
+async function syncDayToBullhorn() {
+  const btn = document.getElementById('bhSyncDay');
+  btn.disabled = true; btn.textContent = 'Syncing...';
+  try {
+    const res = await fetch('/api/bullhorn/sync-day', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const data = await res.json();
+    alert(`Synced ${data.synced} activities to Bullhorn. ${data.errors ? data.errors + ' errors.' : ''}`);
+  } catch (err) { alert('Sync failed: ' + err.message); }
+  finally { btn.disabled = false; btn.textContent = 'Sync Day to BH'; }
 }
 
 /* ── Tracker list ────────────────────────────────────────────── */
@@ -83,7 +89,7 @@ async function loadTracker() {
     const companies = await res.json();
 
     if (companies.length === 0) {
-      trackerList.innerHTML = '<div class="empty-state"><p>No tracked companies yet. Go to Prospects and click Track on companies you want to pursue.</p></div>';
+      trackerList.innerHTML = '<div class="empty-state"><p>No tracked companies yet. Go to Prospects and click Track.</p></div>';
       return;
     }
 
@@ -110,38 +116,28 @@ async function loadTracker() {
             <h4>Contacts</h4>
             <button class="btn btn-primary btn-sm btn-add-contact" data-company-id="${c.id}">+ Add Contact</button>
           </div>
-          <div class="contacts-list" id="contacts-list-${c.id}">
-            <p class="loading-text">Loading...</p>
-          </div>
+          <div class="contacts-list" id="contacts-list-${c.id}"><p class="loading-text">Loading...</p></div>
         </div>
       `;
       trackerList.appendChild(card);
       loadContacts(c.id);
     }
 
-    // Remove company handlers
-    trackerList.querySelectorAll('.btn-remove').forEach((btn) => {
+    trackerList.querySelectorAll('.btn-remove').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Remove this company and all its contacts from tracker?')) return;
-        try {
-          await fetch(`/api/tracker/${btn.dataset.id}`, { method: 'DELETE' });
-          loadTracker();
-        } catch { alert('Failed to remove.'); }
+        if (!confirm('Remove this company and all contacts?')) return;
+        await fetch(`/api/tracker/${btn.dataset.id}`, { method: 'DELETE' });
+        loadTracker();
       });
     });
-
-    // Add contact handlers
-    trackerList.querySelectorAll('.btn-add-contact').forEach((btn) => {
+    trackerList.querySelectorAll('.btn-add-contact').forEach(btn => {
       btn.addEventListener('click', () => showAddContactForm(parseInt(btn.dataset.companyId)));
     });
-
-    // Push All handlers
-    trackerList.querySelectorAll('.btn-push-all').forEach((btn) => {
+    trackerList.querySelectorAll('.btn-push-all').forEach(btn => {
       btn.addEventListener('click', () => pushAllContacts(parseInt(btn.dataset.companyId)));
     });
   } catch (err) {
     trackerList.innerHTML = '<div class="empty-state"><p>Failed to load tracker.</p></div>';
-    console.error(err);
   }
 }
 
@@ -152,13 +148,14 @@ async function loadContacts(companyId) {
     const contacts = await res.json();
 
     if (contacts.length === 0) {
-      listEl.innerHTML = '<p class="empty-contacts">No contacts yet. Add someone to start outreach.</p>';
+      listEl.innerHTML = '<p class="empty-contacts">No contacts yet.</p>';
       return;
     }
 
     listEl.innerHTML = '';
-    contacts.forEach((ct) => {
+    contacts.forEach(ct => {
       const step = STEPS[ct.outreach_step] || STEPS[0];
+      const hasTemplates = ct.outreach_templates && Object.keys(ct.outreach_templates).length > 0;
       const row = document.createElement('div');
       row.className = 'contact-row';
       row.id = `contact-${ct.id}`;
@@ -169,18 +166,20 @@ async function loadContacts(companyId) {
             ${ct.title ? `<span class="contact-title">${esc(ct.title)}</span>` : ''}
           </div>
           <div class="contact-channels">
-            ${ct.linkedin_url ? `<a href="${esc(ct.linkedin_url)}" target="_blank" rel="noopener" class="channel-link channel-linkedin" title="LinkedIn">in</a>` : ''}
+            ${ct.linkedin_url ? `<a href="${esc(ct.linkedin_url)}" target="_blank" class="channel-link channel-linkedin">in</a>` : ''}
             ${ct.email ? `<a href="mailto:${esc(ct.email)}" class="channel-link channel-email" title="${esc(ct.email)}">@</a>` : ''}
             ${ct.phone ? `<span class="channel-link channel-phone" title="${esc(ct.phone)}">Ph</span>` : ''}
           </div>
         </div>
         <div class="contact-step">
-          <select class="step-select" data-contact-id="${ct.id}">
-            ${STEPS.map((s) => `<option value="${s.id}" ${s.id === ct.outreach_step ? 'selected' : ''}>${s.label}</option>`).join('')}
+          <select class="step-select" data-contact-id="${ct.id}" data-company-id="${companyId}">
+            ${STEPS.map(s => `<option value="${s.id}" ${s.id === ct.outreach_step ? 'selected' : ''}>${s.label}</option>`).join('')}
           </select>
           ${step.id > 0 ? `<span class="step-tip"><span class="step-channel">${esc(step.channel)}</span> ${esc(step.tip)}</span>` : ''}
         </div>
         <div class="contact-actions">
+          ${step.id > 0 && hasTemplates ? `<button class="btn-bh btn-bh-note btn-sm btn-show-template" data-contact-id="${ct.id}" data-step="${ct.outreach_step}">View Script</button>` : ''}
+          ${!hasTemplates ? `<button class="btn-bh btn-sm btn-gen-templates" data-contact-id="${ct.id}" data-company-id="${companyId}" style="background:#9b59b6">Generate Scripts</button>` : ''}
           ${bhConnected ? bhButton(ct) : ''}
           <button class="btn btn-secondary btn-sm btn-edit-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">Edit</button>
           <button class="btn btn-danger btn-sm btn-del-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">X</button>
@@ -189,20 +188,22 @@ async function loadContacts(companyId) {
       listEl.appendChild(row);
     });
 
-    // Step change handlers
-    listEl.querySelectorAll('.step-select').forEach((sel) => {
+    // Step change → advance with activity log
+    listEl.querySelectorAll('.step-select').forEach(sel => {
       sel.addEventListener('change', async () => {
-        await fetch(`/api/tracker/contacts/${sel.dataset.contactId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ outreach_step: parseInt(sel.value) }),
+        const contactId = parseInt(sel.dataset.contactId);
+        const newStep = parseInt(sel.value);
+        const stepInfo = STEPS[newStep];
+        await fetch(`/api/tracker/contacts/${contactId}/advance-step`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: newStep, action_taken: stepInfo.label, details: `${stepInfo.channel}: ${stepInfo.tip}` }),
         });
-        loadContacts(companyId);
+        loadContacts(parseInt(sel.dataset.companyId));
       });
     });
 
-    // Delete contact handlers
-    listEl.querySelectorAll('.btn-del-contact').forEach((btn) => {
+    // Delete
+    listEl.querySelectorAll('.btn-del-contact').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!confirm('Remove this contact?')) return;
         await fetch(`/api/tracker/contacts/${btn.dataset.contactId}`, { method: 'DELETE' });
@@ -210,29 +211,78 @@ async function loadContacts(companyId) {
       });
     });
 
-    // Edit contact handlers
-    listEl.querySelectorAll('.btn-edit-contact').forEach((btn) => {
+    // Edit
+    listEl.querySelectorAll('.btn-edit-contact').forEach(btn => {
       btn.addEventListener('click', () => {
-        const ct = contacts.find((c) => c.id === parseInt(btn.dataset.contactId));
+        const ct = contacts.find(c => c.id === parseInt(btn.dataset.contactId));
         if (ct) showEditContactForm(ct, parseInt(btn.dataset.companyId));
       });
     });
 
-    // Push to BH handlers
-    listEl.querySelectorAll('.btn-push-bh').forEach((btn) => {
+    // Push to BH
+    listEl.querySelectorAll('.btn-push-bh').forEach(btn => {
       btn.addEventListener('click', () => pushContact(parseInt(btn.dataset.contactId), parseInt(btn.dataset.companyId)));
     });
 
-    // Add Note to BH handlers
-    listEl.querySelectorAll('.btn-bh-add-note').forEach((btn) => {
+    // Add Note to BH
+    listEl.querySelectorAll('.btn-bh-add-note').forEach(btn => {
       btn.addEventListener('click', () => showNoteForm(parseInt(btn.dataset.contactId), parseInt(btn.dataset.bhId), parseInt(btn.dataset.companyId)));
+    });
+
+    // Generate outreach templates
+    listEl.querySelectorAll('.btn-gen-templates').forEach(btn => {
+      btn.addEventListener('click', () => generateTemplates(parseInt(btn.dataset.contactId), parseInt(btn.dataset.companyId)));
+    });
+
+    // View script/template
+    listEl.querySelectorAll('.btn-show-template').forEach(btn => {
+      btn.addEventListener('click', () => showTemplate(parseInt(btn.dataset.contactId), parseInt(btn.dataset.step), contacts));
     });
   } catch (err) {
     listEl.innerHTML = '<p class="empty-contacts">Failed to load contacts.</p>';
   }
 }
 
-/* ── Bullhorn buttons per contact ────────────────────────────── */
+/* ── Outreach templates ──────────────────────────────────────── */
+
+async function generateTemplates(contactId, companyId) {
+  const btn = document.querySelector(`.btn-gen-templates[data-contact-id="${contactId}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+  try {
+    await fetch(`/api/tracker/contacts/${contactId}/generate-outreach`, { method: 'POST' });
+    loadContacts(companyId);
+  } catch (err) {
+    alert('Failed to generate templates: ' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate Scripts'; }
+  }
+}
+
+function showTemplate(contactId, stepId, contacts) {
+  const ct = contacts.find(c => c.id === contactId);
+  if (!ct || !ct.outreach_templates) return;
+
+  const step = STEPS[stepId];
+  const templates = ct.outreach_templates;
+  const key = step.actionKey;
+  const content = templates[key] || 'No template for this step.';
+
+  const row = document.getElementById(`contact-${contactId}`);
+  if (!row || row.querySelector('.template-display')) return;
+
+  const div = document.createElement('div');
+  div.className = 'template-display';
+  div.style.cssText = 'background:#f8f9fa;padding:12px;margin-top:8px;border-radius:6px;border:1px solid #e2e4ea;white-space:pre-wrap;font-size:13px;position:relative;';
+  div.innerHTML = `
+    <strong>${esc(step.label)}</strong>
+    <button class="btn btn-secondary btn-sm" style="position:absolute;top:8px;right:8px;" onclick="this.parentElement.remove()">Close</button>
+    <hr style="margin:8px 0;border-color:#e2e4ea;">
+    <div>${esc(content)}</div>
+    <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent);this.textContent='Copied!';">Copy</button>
+  `;
+  row.appendChild(div);
+}
+
+/* ── Bullhorn buttons ────────────────────────────────────────── */
 
 function bhButton(ct) {
   if (ct.bullhorn_id) {
@@ -245,16 +295,13 @@ function bhButton(ct) {
 async function pushContact(contactId, companyId) {
   try {
     const res = await fetch('/api/bullhorn/push/contact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ trackedContactId: contactId }),
     });
     const data = await res.json();
     if (data.error) { alert('Push failed: ' + data.error); return; }
     loadContacts(companyId);
-  } catch (err) {
-    alert('Push failed: ' + err.message);
-  }
+  } catch (err) { alert('Push failed: ' + err.message); }
 }
 
 async function pushAllContacts(companyId) {
@@ -263,27 +310,19 @@ async function pushAllContacts(companyId) {
     const contacts = await res.json();
     const unsynced = contacts.filter(c => !c.bullhorn_id);
     if (unsynced.length === 0) { alert('All contacts already in Bullhorn.'); return; }
-
     const batchRes = await fetch('/api/bullhorn/push/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contactIds: unsynced.map(c => c.id) }),
     });
     const data = await batchRes.json();
-    const created = data.results?.filter(r => r.created).length || 0;
-    const existing = data.results?.filter(r => r.alreadyExists).length || 0;
-    const errors = data.results?.filter(r => r.error).length || 0;
-    alert(`Pushed ${created} new, ${existing} already existed, ${errors} errors`);
+    alert(`Pushed ${data.results?.filter(r => r.created).length || 0} new, ${data.results?.filter(r => r.alreadyExists).length || 0} existing.`);
     loadContacts(companyId);
-  } catch (err) {
-    alert('Batch push failed: ' + err.message);
-  }
+  } catch (err) { alert('Batch push failed: ' + err.message); }
 }
 
 function showNoteForm(contactId, bhId, companyId) {
   const row = document.getElementById(`contact-${contactId}`);
   if (!row || row.querySelector('.bh-note-form')) return;
-
   const form = document.createElement('div');
   form.className = 'bh-note-form';
   form.innerHTML = `
@@ -292,33 +331,30 @@ function showNoteForm(contactId, bhId, companyId) {
     <button class="btn btn-secondary btn-sm note-cancel">X</button>
   `;
   row.appendChild(form);
-
   form.querySelector('.note-cancel').addEventListener('click', () => form.remove());
   form.querySelector('.note-save').addEventListener('click', async () => {
     const text = form.querySelector('.note-text').value.trim();
     if (!text) return;
-    try {
-      await fetch('/api/bullhorn/note', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: bhId, action: 'BD Call', comments: text }),
-      });
-      form.remove();
-      alert('Note added to Bullhorn');
-    } catch (err) {
-      alert('Failed to add note: ' + err.message);
-    }
+    await fetch('/api/bullhorn/note', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contactId: bhId, action: 'BD Call', comments: text }),
+    });
+    // Also log locally
+    await fetch('/api/tracker/activity', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tracked_contact_id: contactId, bullhorn_contact_id: bhId, action: 'Note', details: text }),
+    });
+    form.remove();
+    alert('Note added');
   });
-
   form.querySelector('.note-text').focus();
 }
 
-/* ── Add / Edit contact forms ────────────────────────────────── */
+/* ── Add / Edit forms ────────────────────────────────────────── */
 
 function showAddContactForm(companyId) {
   const listEl = document.getElementById(`contacts-list-${companyId}`);
   if (listEl.querySelector('.contact-form')) return;
-
   const form = document.createElement('div');
   form.className = 'contact-form';
   form.innerHTML = `
@@ -337,36 +373,27 @@ function showAddContactForm(companyId) {
     </div>
   `;
   listEl.prepend(form);
-
   form.querySelector('.cf-cancel').addEventListener('click', () => form.remove());
   form.querySelector('.cf-save').addEventListener('click', async () => {
     const name = form.querySelector('.cf-name').value.trim();
     if (!name) { alert('Name is required.'); return; }
-    try {
-      await fetch(`/api/tracker/${companyId}/contacts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          title: form.querySelector('.cf-title').value.trim(),
-          linkedin_url: form.querySelector('.cf-linkedin').value.trim(),
-          email: form.querySelector('.cf-email').value.trim(),
-          phone: form.querySelector('.cf-phone').value.trim(),
-        }),
-      });
-      loadContacts(companyId);
-    } catch (err) {
-      alert('Failed to add contact.');
-    }
+    await fetch(`/api/tracker/${companyId}/contacts`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, title: form.querySelector('.cf-title').value.trim(),
+        linkedin_url: form.querySelector('.cf-linkedin').value.trim(),
+        email: form.querySelector('.cf-email').value.trim(),
+        phone: form.querySelector('.cf-phone').value.trim(),
+      }),
+    });
+    loadContacts(companyId);
   });
-
   form.querySelector('.cf-name').focus();
 }
 
 function showEditContactForm(ct, companyId) {
   const row = document.getElementById(`contact-${ct.id}`);
   if (!row) return;
-
   row.innerHTML = `
     <div class="contact-form inline">
       <div class="contact-form-row">
@@ -384,27 +411,20 @@ function showEditContactForm(ct, companyId) {
       </div>
     </div>
   `;
-
   row.querySelector('.cf-cancel').addEventListener('click', () => loadContacts(companyId));
   row.querySelector('.cf-save').addEventListener('click', async () => {
     const name = row.querySelector('.cf-name').value.trim();
     if (!name) { alert('Name is required.'); return; }
-    try {
-      await fetch(`/api/tracker/contacts/${ct.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          title: row.querySelector('.cf-title').value.trim(),
-          linkedin_url: row.querySelector('.cf-linkedin').value.trim(),
-          email: row.querySelector('.cf-email').value.trim(),
-          phone: row.querySelector('.cf-phone').value.trim(),
-        }),
-      });
-      loadContacts(companyId);
-    } catch (err) {
-      alert('Failed to update contact.');
-    }
+    await fetch(`/api/tracker/contacts/${ct.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, title: row.querySelector('.cf-title').value.trim(),
+        linkedin_url: row.querySelector('.cf-linkedin').value.trim(),
+        email: row.querySelector('.cf-email').value.trim(),
+        phone: row.querySelector('.cf-phone').value.trim(),
+      }),
+    });
+    loadContacts(companyId);
   });
 }
 
@@ -415,12 +435,8 @@ function formatRolesInline(rolesStr) {
   try {
     const roles = JSON.parse(rolesStr);
     if (Array.isArray(roles) && roles.length > 0) {
-      return roles.map((r) => {
-        if (typeof r === 'object' && r.title) {
-          return r.url
-            ? `<a href="${esc(r.url)}" target="_blank" rel="noopener" class="role-link">${esc(r.title)}</a>`
-            : esc(r.title);
-        }
+      return roles.map(r => {
+        if (typeof r === 'object' && r.title) return r.url ? `<a href="${esc(r.url)}" target="_blank" class="role-link">${esc(r.title)}</a>` : esc(r.title);
         return esc(String(r));
       }).join(', ');
     }
@@ -441,6 +457,5 @@ function esc(str) {
 }
 
 /* ── Init ─────────────────────────────────────────────────────── */
-
 checkBhStatus();
 loadTracker();

@@ -68,19 +68,25 @@ function renderProspects() {
   filtered.forEach((c) => {
     const card = document.createElement('div');
     card.className = 'result-card';
+    const isGated = c.gated_out;
     card.innerHTML = `
-      <div class="result-card-header">
+      <div class="result-card-header" ${isGated ? 'style="opacity:0.5"' : ''}>
         <h3>${esc(c.name)}</h3>
         <div class="result-card-badges">
-          ${signalBadge(c.signal_strength)}
+          ${c.score_overall ? `<span class="badge" style="background:${c.score_overall >= 4 ? '#27ae60' : c.score_overall >= 3 ? '#f39c12' : '#e74c3c'};color:#fff">${c.score_overall}/5</span>` : signalBadge(c.signal_strength)}
+          ${isGated ? '<span class="badge" style="background:#e74c3c;color:#fff">GATED</span>' : ''}
+          ${c.signal_types ? `<span class="badge badge-source">${esc(c.signal_types)}</span>` : ''}
           <span class="badge badge-source">${esc(c.source)}</span>
-          <button class="btn btn-primary btn-sm btn-track" data-id="${c.id}" title="Move to Tracker">Track</button>
-          <button class="btn btn-danger btn-sm btn-delete" data-id="${c.id}" title="Remove prospect">Remove</button>
+          ${!isGated ? `<button class="btn btn-primary btn-sm btn-track" data-id="${c.id}">Track</button>` : ''}
+          <button class="btn btn-danger btn-sm btn-delete" data-id="${c.id}">Remove</button>
         </div>
       </div>
+      ${c.recommendation ? `<div class="result-card-meta"><span><strong>${esc(c.recommendation)}</strong></span></div>` : ''}
+      ${isGated ? `<div class="result-card-meta" style="color:#e74c3c"><span>${esc(c.gate_reason)}</span></div>` : ''}
       <div class="result-card-meta">
         <span><strong>ATS:</strong> ${esc(c.ats_detected)}</span>
         ${c.created_at ? `<span><strong>Researched:</strong> ${formatDate(c.created_at)}</span>` : ''}
+        ${c.in_bullhorn ? '<span><strong>In Bullhorn</strong></span>' : ''}
       </div>
       <div class="result-card-body">
         <div class="result-field">

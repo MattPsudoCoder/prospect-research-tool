@@ -195,4 +195,44 @@ router.post('/push/batch', async (req, res) => {
   }
 });
 
+// POST /api/bullhorn/sync-day — end-of-day sync: push all unsynced activity to Bullhorn
+router.post('/sync-day', async (req, res) => {
+  try {
+    // Get all unsynced activities that have a Bullhorn contact ID
+    const unsyncedResult = await db.query(
+      `SELECT al.*, tc.bullhorn_id, tc.name as contact_name
+       FROM activity_log al
+       JOIN tracked_contacts tc ON al.tracked_contact_id = tc.id
+       WHERE al.synced_to_bullhorn = FALSE AND tc.bullhorn_id IS NOT NULL
+       ORDER BY al.created_at ASC`
+    );
+
+    const activities = unsyncedResult.rows;
+    if (activities.length === 0) return res.json({ synced: 0, message: 'Nothing to sync' });
+
+    const results = [];
+    for (const act of activities) {
+      try {
+        // Add note to Bullhorn
+        const noteText = `[${act.action}] ${act.details || ''}`.trim();
+        await bh.addNote(act.bullhorn_id, act.action, noteText);
+
+        // Mark as synced
+        await db.query('UPDATE activity_log SET synced_to_bullhorn = TRUE WHERE id = $1', [act.id]);
+        results.push({ id: act.id, contact: act.contact_name, status: 'synced' });
+
+        await new Promise(r => setTimeout(r, 200)); // small delay
+      } catch (err) {
+        results.push({ id: act.id, contact: act.contact_name, status: 'error', error: err.message });
+      }
+    }
+
+    const synced = results.filter(r => r.status === 'synced').length;
+    const errors = results.filter(r => r.status === 'error').length;
+    res.json({ synced, errors, total: activities.length, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

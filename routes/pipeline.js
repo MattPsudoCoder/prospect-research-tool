@@ -9,19 +9,13 @@ const claude = require('../services/claude');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-/**
- * Flatten roles JSON to readable CSV text.
- * [{"title":"Engineer","url":"https://..."}] → "Engineer (https://...)"
- */
 function flattenRoles(rolesStr) {
   if (!rolesStr) return '';
   try {
     const roles = JSON.parse(rolesStr);
     if (Array.isArray(roles)) {
       return roles.map((r) => {
-        if (typeof r === 'object' && r.title) {
-          return r.url ? `${r.title} (${r.url})` : r.title;
-        }
+        if (typeof r === 'object' && r.title) return r.url ? `${r.title} (${r.url})` : r.title;
         return String(r);
       }).join(', ');
     }
@@ -29,18 +23,23 @@ function flattenRoles(rolesStr) {
   return rolesStr;
 }
 
-// Active runs tracked in memory for SSE progress updates
 const activeRuns = new Map();
 
 /**
- * POST /api/pipeline/run
- * Body (multipart/form-data):
- *   manualNames — newline-separated company names
- *   csvFile — general CSV (one column of names)
- *   zoominfoFile — ZoomInfo CSV export
- *   useICP — "true" to include Claude ICP search
- *   runName — optional label
+ * Cross-run deduplication — skip companies researched in the last 14 days.
+ * Returns names to skip.
  */
+async function getRecentlyResearched(days = 14) {
+  try {
+    const result = await db.query(
+      `SELECT DISTINCT LOWER(name) as name FROM companies
+       WHERE created_at > NOW() - INTERVAL '${days} days'
+       AND signal_strength != 'Gated'`
+    );
+    return new Set(result.rows.map(r => r.name));
+  } catch { return new Set(); }
+}
+
 router.post(
   '/run',
   upload.fields([
@@ -50,14 +49,11 @@ router.post(
   async (req, res) => {
     try {
       const { manualNames, useICP, runName } = req.body;
-      const allCompanies = []; // { name, source }
+      const allCompanies = [];
 
       // Source 1: Manual paste
       if (manualNames && manualNames.trim()) {
-        const names = manualNames
-          .split(/[\n,]+/)
-          .map((n) => n.trim())
-          .filter(Boolean);
+        const names = manualNames.split(/[\n,]+/).map((n) => n.trim()).filter(Boolean);
         names.forEach((name) => allCompanies.push({ name, source: 'Manual' }));
       }
 
@@ -78,11 +74,8 @@ router.post(
         const csvText = req.files.zoominfoFile[0].buffer.toString('utf8');
         const records = parse(csvText, { columns: true, skip_empty_lines: true, relax_column_count: true });
         for (const row of records) {
-          // ZoomInfo exports typically have a "Company Name" column
           const name = row['Company Name'] || row['company name'] || row['Company'] || Object.values(row)[0];
-          if (name?.trim()) {
-            allCompanies.push({ name: name.trim(), source: 'ZoomInfo' });
-          }
+          if (name?.trim()) allCompanies.push({ name: name.trim(), source: 'ZoomInfo' });
         }
       }
 
@@ -96,31 +89,38 @@ router.post(
       }
 
       if (allCompanies.length === 0) {
-        return res.status(400).json({ error: 'No companies provided. Add names manually, upload a CSV, or enable ICP search.' });
+        return res.status(400).json({ error: 'No companies provided.' });
       }
 
-      // Deduplicate
-      const unique = deduplicate(allCompanies);
+      // Deduplicate within this batch
+      let unique = deduplicate(allCompanies);
 
-      // Load ICP settings for research context (role_types, hiring_signals)
+      // Cross-run dedup — skip recently researched companies
+      const recent = await getRecentlyResearched(14);
+      const beforeDedup = unique.length;
+      unique = unique.filter(c => !recent.has(c.name.toLowerCase()));
+      const crossRunSkipped = beforeDedup - unique.length;
+
+      if (unique.length === 0) {
+        return res.status(400).json({ error: `All ${beforeDedup} companies were researched in the last 14 days. No new companies to process.` });
+      }
+
       const icpRow = await db.query('SELECT * FROM icp_settings ORDER BY id DESC LIMIT 1');
       const icp = icpRow.rows.length > 0 ? icpRow.rows[0] : null;
 
-      // Create pipeline run in DB
       const runResult = await db.query(
         `INSERT INTO pipeline_runs (name, status, total_companies) VALUES ($1, 'running', $2) RETURNING *`,
         [runName || `Run ${new Date().toLocaleString()}`, unique.length]
       );
       const run = runResult.rows[0];
 
-      // Start processing in background
-      activeRuns.set(run.id, { total: unique.length, processed: 0, status: 'running' });
+      activeRuns.set(run.id, { total: unique.length, processed: 0, gated: 0, skippedErrors: 0, crossRunSkipped, status: 'running' });
       processCompanies(run.id, unique, icp).catch((err) => {
         console.error('Pipeline error:', err);
         activeRuns.set(run.id, { ...activeRuns.get(run.id), status: 'error', error: err.message });
       });
 
-      res.json({ runId: run.id, totalCompanies: unique.length, status: 'running' });
+      res.json({ runId: run.id, totalCompanies: unique.length, crossRunSkipped, status: 'running' });
     } catch (err) {
       console.error('Pipeline start error:', err);
       res.status(500).json({ error: err.message });
@@ -128,33 +128,25 @@ router.post(
   }
 );
 
-/**
- * Check if a research result contains valid data (not an API error).
- */
 function isValidResult(result) {
+  if (!result) return false;
   const signals = result.hiring_signals || '';
   if (signals.startsWith('Error:')) return false;
   if (signals.includes('rate_limit_error')) return false;
   if (signals.includes('"type":"error"')) return false;
-  if (!signals && !result.ats_detected && !result.roles_found) return false;
+  // A result is valid if it has ANY useful data (roles, signals, or Bullhorn info)
+  if (!signals && !result.ats_detected && !result.roles_found && !result.in_bullhorn) return false;
   return true;
 }
 
-/**
- * Process companies sequentially (to manage API rate limits).
- * Retries once on rate-limit errors after a longer cooldown.
- * Skips saving bad/error data entirely.
- */
 async function processCompanies(runId, companies, icp) {
   let skipped = 0;
+  let gated = 0;
 
   for (let i = 0; i < companies.length; i++) {
     const { name, source } = companies[i];
 
-    // Delay between API calls to avoid Claude API rate limits (skip first)
-    if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 10000));
-    }
+    if (i > 0) await new Promise((resolve) => setTimeout(resolve, 5000)); // 5s between (faster than v1.0's 10s since Tier 1 is API-first)
 
     let result = null;
 
@@ -164,70 +156,62 @@ async function processCompanies(runId, companies, icp) {
       console.error(`Research failed for "${name}":`, err.message);
     }
 
-    // If result is bad (rate limit, error), retry once after a longer wait
+    // Retry once on failure
     if (!result || !isValidResult(result)) {
-      console.log(`Retrying "${name}" after 30s cooldown...`);
-      await new Promise((resolve) => setTimeout(resolve, 30000));
+      console.log(`Retrying "${name}" after 15s cooldown...`);
+      await new Promise((resolve) => setTimeout(resolve, 15000));
       try {
         result = await researchCompany(name, source, icp);
       } catch (err) {
-        console.error(`Retry also failed for "${name}":`, err.message);
+        console.error(`Retry failed for "${name}":`, err.message);
         result = null;
       }
     }
 
-    // Only save valid results — never save error data
+    // Save all valid results (including gated ones — they're marked, not discarded from DB)
     if (result && isValidResult(result)) {
+      if (result.gated_out) gated++;
+
       await db.query(
-        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity, raw_research)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength,
+         score_overall, score_details, recommendation, signal_types, in_bullhorn, bullhorn_status, last_activity,
+         gated_out, gate_reason, raw_research)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
         [
           runId, result.name, result.source, result.ats_detected,
           result.roles_found, result.hiring_signals, result.keywords,
-          result.signal_strength, result.in_bullhorn || false,
+          result.signal_strength, result.score_overall,
+          result.score_details, result.recommendation,
+          result.signal_types, result.in_bullhorn || false,
           result.bullhorn_status || '', result.last_activity || '',
+          result.gated_out || false, result.gate_reason || '',
           JSON.stringify(result.raw_research),
         ]
       );
     } else {
       skipped++;
-      console.warn(`Skipped "${name}" — no valid data after retry.`);
+      console.warn(`Skipped "${name}" — no valid data after retry. Errors: ${result?.errors || 'unknown'}`);
     }
 
-    // Update progress
-    await db.query(
-      'UPDATE pipeline_runs SET processed_companies = $1 WHERE id = $2',
-      [i + 1, runId]
-    );
+    await db.query('UPDATE pipeline_runs SET processed_companies = $1 WHERE id = $2', [i + 1, runId]);
     if (activeRuns.has(runId)) {
-      activeRuns.get(runId).processed = i + 1;
+      const progress = activeRuns.get(runId);
+      progress.processed = i + 1;
+      progress.gated = gated;
+      progress.skippedErrors = skipped;
     }
   }
 
-  // Mark complete
-  await db.query(
-    "UPDATE pipeline_runs SET status = 'completed', completed_at = NOW() WHERE id = $1",
-    [runId]
-  );
-  if (activeRuns.has(runId)) {
-    activeRuns.get(runId).status = 'completed';
-  }
+  await db.query("UPDATE pipeline_runs SET status = 'completed', completed_at = NOW() WHERE id = $1", [runId]);
+  if (activeRuns.has(runId)) activeRuns.get(runId).status = 'completed';
 
-  if (skipped > 0) {
-    console.warn(`Pipeline run ${runId} completed with ${skipped} skipped companies (API errors).`);
-  }
+  console.log(`Pipeline run ${runId} completed: ${companies.length - skipped - gated} qualified, ${gated} gated out, ${skipped} errors.`);
 }
 
-/**
- * GET /api/pipeline/:runId/progress — SSE stream for live progress.
- */
+// SSE progress
 router.get('/:runId/progress', (req, res) => {
   const runId = parseInt(req.params.runId);
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  });
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
 
   const interval = setInterval(async () => {
     const progress = activeRuns.get(runId);
@@ -239,63 +223,49 @@ router.get('/:runId/progress', (req, res) => {
         res.end();
       }
     } else {
-      // Check DB in case server restarted
       try {
         const result = await db.query('SELECT * FROM pipeline_runs WHERE id = $1', [runId]);
         if (result.rows.length > 0) {
           const run = result.rows[0];
-          res.write(
-            `data: ${JSON.stringify({
-              total: run.total_companies,
-              processed: run.processed_companies,
-              status: run.status,
-            })}\n\n`
-          );
-          if (run.status === 'completed' || run.status === 'error') {
-            clearInterval(interval);
-            res.end();
-          }
+          res.write(`data: ${JSON.stringify({ total: run.total_companies, processed: run.processed_companies, status: run.status })}\n\n`);
+          if (run.status === 'completed' || run.status === 'error') { clearInterval(interval); res.end(); }
         }
-      } catch {
-        clearInterval(interval);
-        res.end();
-      }
+      } catch { clearInterval(interval); res.end(); }
     }
   }, 1500);
 
   req.on('close', () => clearInterval(interval));
 });
 
-/**
- * GET /api/pipeline/:runId/export — Download results as CSV.
- */
+// CSV export
 router.get('/:runId/export', async (req, res) => {
   const { stringify } = require('csv-stringify/sync');
   try {
     const result = await db.query(
-      'SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength FROM companies WHERE run_id = $1 ORDER BY signal_strength DESC',
+      `SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength,
+              score_overall, recommendation, signal_types, in_bullhorn, bullhorn_status, last_activity, gated_out, gate_reason
+       FROM companies WHERE run_id = $1 ORDER BY score_overall DESC NULLS LAST`,
       [req.params.runId]
     );
-
-    // Flatten roles JSON to readable text for CSV
-    const rows = result.rows.map((r) => ({
-      ...r,
-      roles_found: flattenRoles(r.roles_found),
-    }));
-
+    const rows = result.rows.map((r) => ({ ...r, roles_found: flattenRoles(r.roles_found) }));
     const csv = stringify(rows, {
       header: true,
       columns: [
-        { key: 'name', header: 'Company Name' },
+        { key: 'name', header: 'Company' },
         { key: 'source', header: 'Source' },
-        { key: 'ats_detected', header: 'ATS Detected' },
-        { key: 'roles_found', header: 'Roles Found' },
-        { key: 'hiring_signals', header: 'Hiring Signals' },
-        { key: 'keywords', header: 'Keywords' },
-        { key: 'signal_strength', header: 'Signal Strength' },
+        { key: 'score_overall', header: 'Score' },
+        { key: 'recommendation', header: 'Recommendation' },
+        { key: 'signal_types', header: 'Signal Types' },
+        { key: 'ats_detected', header: 'ATS' },
+        { key: 'roles_found', header: 'Roles' },
+        { key: 'hiring_signals', header: 'Signals' },
+        { key: 'signal_strength', header: 'Strength' },
+        { key: 'in_bullhorn', header: 'In BH' },
+        { key: 'bullhorn_status', header: 'BH Status' },
+        { key: 'gated_out', header: 'Gated Out' },
+        { key: 'gate_reason', header: 'Gate Reason' },
       ],
     });
-
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=prospect-research-run-${req.params.runId}.csv`);
     res.send(csv);
