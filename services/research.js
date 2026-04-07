@@ -9,10 +9,15 @@
  *   Score:  5-dimension structured scoring with hard cutoff
  */
 
-const claude = require('./claude');
 const ats = require('./ats');
 const bullhorn = require('./bullhorn');
 const { scoreProspect, CUTOFF } = require('./scoring');
+
+// Claude services are optional — only loaded if ANTHROPIC_API_KEY is set
+let claude = null;
+try {
+  if (process.env.ANTHROPIC_API_KEY) claude = require('./claude');
+} catch { /* no API key, Claude features disabled */ }
 
 /**
  * Classify hiring signals into categories.
@@ -88,19 +93,23 @@ async function researchCompany(companyName, source, icp) {
     errors.push(`ATS Tier 1: ${err.message}`);
   }
 
-  // ── Tier 2: Claude hiring signals (parallel with Bullhorn) ─
+  // ── Tier 2: Claude hiring signals (if API key available) + Bullhorn ─
   let signals = { hiring_signals: '', keywords: '', signal_strength: 'Low', details: '' };
   let bhResult = { found: false };
 
   const bhConfigured = bullhorn.isConfigured().connected;
 
   try {
-    const results = await Promise.allSettled([
-      claude.researchCompany(companyName, icp),
+    const tasks = [
       bhConfigured
         ? bullhorn.checkCompany(companyName)
         : Promise.resolve({ found: false }),
-    ]);
+    ];
+    // Only add Claude research if API key is configured
+    if (claude) tasks.unshift(claude.researchCompany(companyName, icp));
+    else tasks.unshift(Promise.resolve(signals)); // skip Claude
+
+    const results = await Promise.allSettled(tasks);
 
     if (results[0].status === 'fulfilled') signals = results[0].value;
     else errors.push(`Claude: ${results[0].reason?.message || 'failed'}`);
@@ -111,8 +120,8 @@ async function researchCompany(companyName, source, icp) {
     errors.push(`Tier 2 parallel: ${err.message}`);
   }
 
-  // ── Tier 3: Claude ATS fallback (only if Tier 1 found nothing) ─
-  if (atsResult.ats === 'None detected' && atsResult.roles.length === 0) {
+  // ── Tier 3: Claude ATS fallback (only if Tier 1 found nothing AND Claude is available) ─
+  if (claude && atsResult.ats === 'None detected' && atsResult.roles.length === 0) {
     try {
       const fallback = await claude.searchATSFallback(companyName, icp);
       if (fallback.ats_found) {

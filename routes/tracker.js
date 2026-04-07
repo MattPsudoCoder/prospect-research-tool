@@ -1,7 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/db');
-const outreach = require('../services/outreach');
+
+// Outreach service is optional — requires Anthropic API key
+let outreach = null;
+try {
+  if (process.env.ANTHROPIC_API_KEY) outreach = require('../services/outreach');
+} catch { /* Claude features disabled */ }
 
 // GET all tracked companies
 router.get('/', async (req, res) => {
@@ -120,6 +125,7 @@ router.delete('/contacts/:contactId', async (req, res) => {
 
 // POST — generate outreach templates for a contact
 router.post('/contacts/:contactId/generate-outreach', async (req, res) => {
+  if (!outreach) return res.status(400).json({ error: 'Outreach generation requires an Anthropic API key. Ask Claude Code to generate scripts for you instead — it\'s free.' });
   try {
     const ct = await db.query(
       `SELECT tc.*, tco.name as company_name, tco.hiring_signals, tco.roles_found, tco.keywords, tco.signal_strength

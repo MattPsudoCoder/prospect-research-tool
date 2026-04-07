@@ -5,7 +5,11 @@ const { parse } = require('csv-parse/sync');
 const db = require('../db/db');
 const { deduplicate } = require('../services/dedup');
 const { researchCompany } = require('../services/research');
-const claude = require('../services/claude');
+// Claude is optional — pipeline works without API key (Tier 1 ATS + Bullhorn still run)
+let claude = null;
+try {
+  if (process.env.ANTHROPIC_API_KEY) claude = require('../services/claude');
+} catch { /* Claude features disabled */ }
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -79,8 +83,11 @@ router.post(
         }
       }
 
-      // Source 4: ICP-based Claude search
+      // Source 4: ICP-based Claude search (only if API key configured)
       if (useICP === 'true') {
+        if (!claude) {
+          return res.status(400).json({ error: 'ICP Search requires an Anthropic API key in .env. Add companies manually or via CSV instead.' });
+        }
         const icpResult = await db.query('SELECT * FROM icp_settings ORDER BY id DESC LIMIT 1');
         if (icpResult.rows.length > 0) {
           const icpCompanies = await claude.searchCompaniesByICP(icpResult.rows[0]);

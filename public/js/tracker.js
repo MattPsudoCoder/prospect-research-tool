@@ -2,6 +2,10 @@
 
 const trackerList = document.getElementById('trackerList');
 let bhConnected = false;
+let claudeAvailable = false;
+
+// Check what features are available
+fetch('/api/features').then(r => r.json()).then(f => { claudeAvailable = f.claude_api; }).catch(() => {});
 
 const STEPS = [
   { id: 0, label: 'Not started', channel: '', tip: '', actionKey: '' },
@@ -28,9 +32,19 @@ async function checkBhStatus() {
   }
 }
 
+// Set up the bookmarklet — grabs BH token and sends to our app
+function setupBookmarklet() {
+  const appUrl = window.location.origin;
+  const code = `javascript:void((function(){var t=JSON.parse(localStorage.getItem('BhRestToken')),u=JSON.parse(localStorage.getItem('rawRestUrl'));if(!t||!u){alert('Not logged into Bullhorn');}else{fetch('${appUrl}/api/bullhorn/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bhRestToken:t,restUrl:u})}).then(r=>r.json()).then(d=>{if(d.connected)alert('Connected to Prospect Research!');else alert('Failed: '+(d.error||'unknown'));}).catch(e=>alert('Failed: '+e.message));}})())`;
+  const el = document.getElementById('bhBookmarklet');
+  if (el) el.href = code;
+}
+
 function renderBhBar(data) {
   const bar = document.getElementById('bhStatus');
+  const help = document.getElementById('bhHelp');
   if (data.connected) {
+    if (help) help.style.display = 'none';
     bar.innerHTML = `
       <span class="bh-dot connected"></span>
       <span class="bh-label">Bullhorn connected (${esc(data.method)})</span>
@@ -53,6 +67,7 @@ function renderBhBar(data) {
         <button class="btn-bh" id="bhConnect">Connect</button>
       </div>
     `;
+    if (help) { help.style.display = 'block'; setupBookmarklet(); }
     document.getElementById('bhConnect').addEventListener('click', async () => {
       const token = document.getElementById('bhToken').value.trim();
       const url = document.getElementById('bhRestUrl').value.trim();
@@ -179,7 +194,7 @@ async function loadContacts(companyId) {
         </div>
         <div class="contact-actions">
           ${step.id > 0 && hasTemplates ? `<button class="btn-bh btn-bh-note btn-sm btn-show-template" data-contact-id="${ct.id}" data-step="${ct.outreach_step}">View Script</button>` : ''}
-          ${!hasTemplates ? `<button class="btn-bh btn-sm btn-gen-templates" data-contact-id="${ct.id}" data-company-id="${companyId}" style="background:#9b59b6">Generate Scripts</button>` : ''}
+          ${!hasTemplates && claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-templates" data-contact-id="${ct.id}" data-company-id="${companyId}" style="background:#9b59b6">Generate Scripts</button>` : ''}
           ${bhConnected ? bhButton(ct) : ''}
           <button class="btn btn-secondary btn-sm btn-edit-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">Edit</button>
           <button class="btn btn-danger btn-sm btn-del-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">X</button>
@@ -459,3 +474,8 @@ function esc(str) {
 /* ── Init ─────────────────────────────────────────────────────── */
 checkBhStatus();
 loadTracker();
+
+// Listen for bookmarklet connection from Bullhorn tab
+window.addEventListener('focus', () => {
+  if (!bhConnected) checkBhStatus();
+});
