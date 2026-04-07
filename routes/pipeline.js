@@ -179,12 +179,14 @@ async function processCompanies(runId, companies, icp) {
     // Only save valid results — never save error data
     if (result && isValidResult(result)) {
       await db.query(
-        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, raw_research)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity, raw_research)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           runId, result.name, result.source, result.ats_detected,
           result.roles_found, result.hiring_signals, result.keywords,
-          result.signal_strength, JSON.stringify(result.raw_research),
+          result.signal_strength, result.in_bullhorn || false,
+          result.bullhorn_status || '', result.last_activity || '',
+          JSON.stringify(result.raw_research),
         ]
       );
     } else {

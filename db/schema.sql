@@ -71,6 +71,10 @@ CREATE TABLE IF NOT EXISTS tracked_contacts (
     updated_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+-- Bullhorn sync columns on tracked_contacts
+ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS bullhorn_id INTEGER DEFAULT NULL;
+ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS bullhorn_synced_at TIMESTAMPTZ DEFAULT NULL;
+
 -- Seed a default ICP row if none exists
 INSERT INTO icp_settings (industry_sector, company_size_min, company_size_max, geography, role_types)
 SELECT 'Technology', 50, 5000, 'United States', 'Software Engineer, Product Manager, Data Scientist'

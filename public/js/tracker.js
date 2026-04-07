@@ -1,6 +1,7 @@
-/* Tracker page — companies + contacts with outreach step pipeline */
+/* Tracker page — companies + contacts with outreach step pipeline + Bullhorn sync */
 
 const trackerList = document.getElementById('trackerList');
+let bhConnected = false;
 
 const STEPS = [
   { id: 0, label: 'Not started', channel: '', tip: '' },
@@ -12,6 +13,69 @@ const STEPS = [
   { id: 6, label: '5. Value-add email', channel: 'Email', tip: 'Give before you ask again' },
   { id: 7, label: '6. LinkedIn follow-up', channel: 'LinkedIn', tip: 'Soft close + market insight' },
 ];
+
+/* ── Bullhorn connection bar ─────────────────────────────────── */
+
+async function checkBhStatus() {
+  try {
+    const res = await fetch('/api/bullhorn/status');
+    const data = await res.json();
+    bhConnected = data.connected;
+    renderBhBar(data);
+  } catch {
+    bhConnected = false;
+    renderBhBar({ connected: false, method: 'none' });
+  }
+}
+
+function renderBhBar(data) {
+  const bar = document.getElementById('bhStatus');
+  if (data.connected) {
+    bar.innerHTML = `
+      <span class="bh-dot connected"></span>
+      <span class="bh-label">Bullhorn connected (${esc(data.method)})</span>
+      <button class="btn btn-secondary btn-sm" id="bhDisconnect">Disconnect</button>
+    `;
+    document.getElementById('bhDisconnect').addEventListener('click', async () => {
+      await fetch('/api/bullhorn/disconnect', { method: 'POST' });
+      checkBhStatus();
+      loadTracker();
+    });
+  } else {
+    bar.innerHTML = `
+      <span class="bh-dot disconnected"></span>
+      <span class="bh-label">Bullhorn</span>
+      <div class="bh-connect-form">
+        <input type="text" id="bhToken" placeholder="BhRestToken">
+        <input type="text" id="bhRestUrl" placeholder="restUrl (https://rest...)">
+        <button class="btn-bh" id="bhConnect">Connect</button>
+      </div>
+    `;
+    document.getElementById('bhConnect').addEventListener('click', async () => {
+      const token = document.getElementById('bhToken').value.trim();
+      const url = document.getElementById('bhRestUrl').value.trim();
+      if (!token || !url) { alert('Paste both BhRestToken and restUrl from Bullhorn localStorage'); return; }
+      try {
+        const res = await fetch('/api/bullhorn/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bhRestToken: token, restUrl: url }),
+        });
+        const data = await res.json();
+        if (data.connected) {
+          checkBhStatus();
+          loadTracker();
+        } else {
+          alert('Connection failed: ' + (data.error || 'unknown'));
+        }
+      } catch (err) {
+        alert('Connection failed: ' + err.message);
+      }
+    });
+  }
+}
+
+/* ── Tracker list ────────────────────────────────────────────── */
 
 async function loadTracker() {
   try {
@@ -33,6 +97,7 @@ async function loadTracker() {
           <h3>${esc(c.name)}</h3>
           <div class="result-card-badges">
             ${signalBadge(c.signal_strength)}
+            ${bhConnected ? `<button class="btn-bh btn-bh-push btn-sm btn-push-all" data-company-id="${c.id}">Push All to BH</button>` : ''}
             <button class="btn btn-danger btn-sm btn-remove" data-id="${c.id}">Remove</button>
           </div>
         </div>
@@ -68,6 +133,11 @@ async function loadTracker() {
     // Add contact handlers
     trackerList.querySelectorAll('.btn-add-contact').forEach((btn) => {
       btn.addEventListener('click', () => showAddContactForm(parseInt(btn.dataset.companyId)));
+    });
+
+    // Push All handlers
+    trackerList.querySelectorAll('.btn-push-all').forEach((btn) => {
+      btn.addEventListener('click', () => pushAllContacts(parseInt(btn.dataset.companyId)));
     });
   } catch (err) {
     trackerList.innerHTML = '<div class="empty-state"><p>Failed to load tracker.</p></div>';
@@ -111,6 +181,7 @@ async function loadContacts(companyId) {
           ${step.id > 0 ? `<span class="step-tip"><span class="step-channel">${esc(step.channel)}</span> ${esc(step.tip)}</span>` : ''}
         </div>
         <div class="contact-actions">
+          ${bhConnected ? bhButton(ct) : ''}
           <button class="btn btn-secondary btn-sm btn-edit-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">Edit</button>
           <button class="btn btn-danger btn-sm btn-del-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">X</button>
         </div>
@@ -121,8 +192,7 @@ async function loadContacts(companyId) {
     // Step change handlers
     listEl.querySelectorAll('.step-select').forEach((sel) => {
       sel.addEventListener('change', async () => {
-        const contactId = sel.dataset.contactId;
-        await fetch(`/api/tracker/contacts/${contactId}`, {
+        await fetch(`/api/tracker/contacts/${sel.dataset.contactId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ outreach_step: parseInt(sel.value) }),
@@ -147,14 +217,106 @@ async function loadContacts(companyId) {
         if (ct) showEditContactForm(ct, parseInt(btn.dataset.companyId));
       });
     });
+
+    // Push to BH handlers
+    listEl.querySelectorAll('.btn-push-bh').forEach((btn) => {
+      btn.addEventListener('click', () => pushContact(parseInt(btn.dataset.contactId), parseInt(btn.dataset.companyId)));
+    });
+
+    // Add Note to BH handlers
+    listEl.querySelectorAll('.btn-bh-add-note').forEach((btn) => {
+      btn.addEventListener('click', () => showNoteForm(parseInt(btn.dataset.contactId), parseInt(btn.dataset.bhId), parseInt(btn.dataset.companyId)));
+    });
   } catch (err) {
     listEl.innerHTML = '<p class="empty-contacts">Failed to load contacts.</p>';
   }
 }
 
+/* ── Bullhorn buttons per contact ────────────────────────────── */
+
+function bhButton(ct) {
+  if (ct.bullhorn_id) {
+    return `<button class="btn-bh btn-bh-synced btn-sm" disabled>In BH</button>
+            <button class="btn-bh btn-bh-note btn-sm btn-bh-add-note" data-contact-id="${ct.id}" data-bh-id="${ct.bullhorn_id}" data-company-id="${ct.tracked_company_id}">Note</button>`;
+  }
+  return `<button class="btn-bh btn-bh-push btn-sm btn-push-bh" data-contact-id="${ct.id}" data-company-id="${ct.tracked_company_id}">Push to BH</button>`;
+}
+
+async function pushContact(contactId, companyId) {
+  try {
+    const res = await fetch('/api/bullhorn/push/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackedContactId: contactId }),
+    });
+    const data = await res.json();
+    if (data.error) { alert('Push failed: ' + data.error); return; }
+    loadContacts(companyId);
+  } catch (err) {
+    alert('Push failed: ' + err.message);
+  }
+}
+
+async function pushAllContacts(companyId) {
+  try {
+    const res = await fetch(`/api/tracker/${companyId}/contacts`);
+    const contacts = await res.json();
+    const unsynced = contacts.filter(c => !c.bullhorn_id);
+    if (unsynced.length === 0) { alert('All contacts already in Bullhorn.'); return; }
+
+    const batchRes = await fetch('/api/bullhorn/push/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contactIds: unsynced.map(c => c.id) }),
+    });
+    const data = await batchRes.json();
+    const created = data.results?.filter(r => r.created).length || 0;
+    const existing = data.results?.filter(r => r.alreadyExists).length || 0;
+    const errors = data.results?.filter(r => r.error).length || 0;
+    alert(`Pushed ${created} new, ${existing} already existed, ${errors} errors`);
+    loadContacts(companyId);
+  } catch (err) {
+    alert('Batch push failed: ' + err.message);
+  }
+}
+
+function showNoteForm(contactId, bhId, companyId) {
+  const row = document.getElementById(`contact-${contactId}`);
+  if (!row || row.querySelector('.bh-note-form')) return;
+
+  const form = document.createElement('div');
+  form.className = 'bh-note-form';
+  form.innerHTML = `
+    <input type="text" class="note-text" placeholder="Note text...">
+    <button class="btn-bh btn-bh-note btn-sm note-save">Add</button>
+    <button class="btn btn-secondary btn-sm note-cancel">X</button>
+  `;
+  row.appendChild(form);
+
+  form.querySelector('.note-cancel').addEventListener('click', () => form.remove());
+  form.querySelector('.note-save').addEventListener('click', async () => {
+    const text = form.querySelector('.note-text').value.trim();
+    if (!text) return;
+    try {
+      await fetch('/api/bullhorn/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: bhId, action: 'BD Call', comments: text }),
+      });
+      form.remove();
+      alert('Note added to Bullhorn');
+    } catch (err) {
+      alert('Failed to add note: ' + err.message);
+    }
+  });
+
+  form.querySelector('.note-text').focus();
+}
+
+/* ── Add / Edit contact forms ────────────────────────────────── */
+
 function showAddContactForm(companyId) {
   const listEl = document.getElementById(`contacts-list-${companyId}`);
-  // Don't add duplicate forms
   if (listEl.querySelector('.contact-form')) return;
 
   const form = document.createElement('div');
@@ -246,6 +408,8 @@ function showEditContactForm(ct, companyId) {
   });
 }
 
+/* ── Helpers ──────────────────────────────────────────────────── */
+
 function formatRolesInline(rolesStr) {
   if (!rolesStr) return '<em>None</em>';
   try {
@@ -269,11 +433,6 @@ function signalBadge(strength) {
   return `<span class="badge badge-${s}">${strength || 'Low'}</span>`;
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 function esc(str) {
   if (!str) return '';
   const div = document.createElement('div');
@@ -281,4 +440,7 @@ function esc(str) {
   return div.innerHTML;
 }
 
+/* ── Init ─────────────────────────────────────────────────────── */
+
+checkBhStatus();
 loadTracker();

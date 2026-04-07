@@ -584,6 +584,53 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   gap: 8px;
 }
 
+/* ── Bullhorn bar ───────────────────────────────── */
+.bullhorn-bar {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.bh-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+.bh-dot.connected { background: var(--success); }
+.bh-dot.disconnected { background: var(--danger); }
+.bh-connect-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bh-connect-form input {
+  font-size: 13px; padding: 4px 8px;
+  border: 1px solid var(--border); border-radius: 4px;
+  min-width: 200px;
+}
+.bh-label { font-size: 14px; font-weight: 500; }
+.btn-bh {
+  background: #f57c00; color: #fff; border: none;
+  padding: 4px 10px; border-radius: 4px; font-size: 12px;
+  cursor: pointer; white-space: nowrap;
+}
+.btn-bh:hover { background: #e65100; }
+.btn-bh-push { background: #f57c00; }
+.btn-bh-note { background: var(--primary); color: #fff; }
+.btn-bh-synced {
+  background: none; color: var(--success); border: 1px solid var(--success);
+  cursor: default; font-size: 11px;
+}
+.bh-note-form {
+  display: flex; gap: 6px; margin-top: 6px;
+}
+.bh-note-form input {
+  flex: 1; font-size: 13px; padding: 4px 8px;
+  border: 1px solid var(--border); border-radius: 4px;
+}
+
 @media (max-width: 900px) {
   .contact-row {
     flex-direction: column;

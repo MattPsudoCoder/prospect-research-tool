@@ -18,6 +18,7 @@ app.use('/api/icp', require('./routes/icp'));
 app.use('/api/pipeline', require('./routes/pipeline'));
 app.use('/api/history', require('./routes/history'));
 app.use('/api/tracker', require('./routes/tracker'));
+app.use('/api/bullhorn', require('./routes/bullhorn'));
 
 // SPA fallback — serve index.html for page routes
 const pages = ['/', '/icp', '/history', '/prospects', '/tracker'];
