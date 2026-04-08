@@ -71,7 +71,7 @@ function renderBhBar(data) {
     document.getElementById('bhConnect').addEventListener('click', async () => {
       const token = document.getElementById('bhToken').value.trim();
       const url = document.getElementById('bhRestUrl').value.trim();
-      if (!token || !url) { alert('Paste both BhRestToken and restUrl'); return; }
+      if (!token || !url) { alert('Ask Claude Code to connect Bullhorn — it grabs the token from your browser automatically.'); return; }
       try {
         const res = await fetch('/api/bullhorn/token', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
