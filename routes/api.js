@@ -10,7 +10,6 @@ router.get('/health', (req, res) => {
 router.get('/features', (req, res) => {
   res.json({
     claude_api: !!process.env.ANTHROPIC_API_KEY,
-    bullhorn_oauth: !!(process.env.BULLHORN_CLIENT_ID && process.env.BULLHORN_CLIENT_SECRET),
   });
 });
 

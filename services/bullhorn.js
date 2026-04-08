@@ -1,20 +1,15 @@
 /**
- * Bullhorn CRM integration — dual auth (manual browser token + OAuth).
+ * Bullhorn CRM integration via browser token passthrough.
  *
- * Manual token mode: user pastes BhRestToken + restUrl from their
- * authenticated Bullhorn browser session. Works immediately.
- *
- * OAuth mode: activated when BULLHORN_CLIENT_ID + CLIENT_SECRET are
- * set in .env. Not yet available (waiting on CLIENT_SECRET).
+ * User pastes BhRestToken + restUrl from their authenticated Bullhorn
+ * browser session (or uses the bookmarklet for one-click connect).
+ * Tokens last ~10 min; app treats them as expired after 8 min.
  */
 
 /* ── credential cache ─────────────────────────────────────────── */
 
 let manualCache = { bhRestToken: null, restUrl: null, receivedAt: 0 };
-let oauthCache  = { bhRestToken: null, restUrl: null, expiresAt: 0 };
-
 const MANUAL_TTL = 8 * 60 * 1000;   // 8 min (BH tokens last ~10 min)
-const OAUTH_TTL  = 4 * 60 * 1000;   // 4 min
 
 /* ── auth helpers ─────────────────────────────────────────────── */
 
@@ -35,72 +30,17 @@ function getManualToken() {
   return { bhRestToken: manualCache.bhRestToken, restUrl: manualCache.restUrl };
 }
 
-async function authenticateOAuth() {
-  if (oauthCache.bhRestToken && Date.now() < oauthCache.expiresAt) {
-    return { bhRestToken: oauthCache.bhRestToken, restUrl: oauthCache.restUrl };
-  }
-
-  const { BULLHORN_CLIENT_ID, BULLHORN_CLIENT_SECRET, BULLHORN_USERNAME, BULLHORN_PASSWORD } = process.env;
-  if (!BULLHORN_CLIENT_ID || !BULLHORN_CLIENT_SECRET) return null;
-
-  // Step 1 — auth code
-  const authUrl = new URL('https://auth.bullhornstaffing.com/oauth/authorize');
-  authUrl.searchParams.set('client_id', BULLHORN_CLIENT_ID);
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('action', 'Login');
-  authUrl.searchParams.set('username', BULLHORN_USERNAME);
-  authUrl.searchParams.set('password', BULLHORN_PASSWORD);
-
-  const authRes = await fetch(authUrl.toString(), { redirect: 'manual' });
-  const location = authRes.headers.get('location') || '';
-  const codeMatch = location.match(/code=([^&]+)/);
-  if (!codeMatch) throw new Error('Failed to get Bullhorn auth code');
-
-  // Step 2 — access token
-  const tokenRes = await fetch('https://auth.bullhornstaffing.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: codeMatch[1],
-      client_id: BULLHORN_CLIENT_ID,
-      client_secret: BULLHORN_CLIENT_SECRET,
-    }).toString(),
-  });
-  const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) throw new Error('Failed to get Bullhorn access token');
-
-  // Step 3 — REST login
-  const loginRes = await fetch(
-    `https://rest.bullhornstaffing.com/rest-services/login?version=*&access_token=${tokenData.access_token}`,
-    { method: 'POST' }
-  );
-  const loginData = await loginRes.json();
-  if (!loginData.BhRestToken) throw new Error('Failed to get Bullhorn REST token');
-
-  oauthCache = { bhRestToken: loginData.BhRestToken, restUrl: loginData.restUrl, expiresAt: Date.now() + OAUTH_TTL };
-  return { bhRestToken: oauthCache.bhRestToken, restUrl: oauthCache.restUrl };
-}
-
-/** Get credentials from either source (OAuth first, then manual). */
+/** Get credentials from manual token cache. */
 async function getCredentials() {
-  // Try OAuth if configured
-  const { BULLHORN_CLIENT_ID, BULLHORN_CLIENT_SECRET } = process.env;
-  if (BULLHORN_CLIENT_ID && BULLHORN_CLIENT_SECRET) {
-    const oauth = await authenticateOAuth();
-    if (oauth) return oauth;
-  }
-  // Fall back to manual token
   const manual = getManualToken();
   if (manual) return manual;
-  throw new Error('Bullhorn not connected — provide a token or configure OAuth');
+  throw new Error('Bullhorn not connected — provide a token via the connection bar');
 }
 
 /** Return current config status. */
 function isConfigured() {
-  const hasOAuth = !!(process.env.BULLHORN_CLIENT_ID && process.env.BULLHORN_CLIENT_SECRET);
   const manual = getManualToken();
-  return { oauth: hasOAuth, manualToken: !!manual, connected: hasOAuth || !!manual };
+  return { manualToken: !!manual, connected: !!manual };
 }
 
 /* ── fetch helper ─────────────────────────────────────────────── */
@@ -113,7 +53,6 @@ async function bhFetch(path, options = {}) {
   const res = await fetch(url, { signal: AbortSignal.timeout(8000), ...options });
   if (res.status === 401) {
     clearManualToken();
-    oauthCache = { bhRestToken: null, restUrl: null, expiresAt: 0 };
     throw new Error('Bullhorn token expired — reconnect');
   }
   return res.json();
