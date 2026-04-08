@@ -123,9 +123,11 @@ async function loadTracker() {
           </div>
         </div>
         <div class="result-card-meta">
-          <span><strong>ATS:</strong> ${esc(c.ats_detected)}</span>
+          <span><strong>ATS:</strong> ${c.ats_detected && c.ats_detected !== 'None' ? esc(c.ats_detected) : '—'}</span>
           <span><strong>Roles:</strong> ${formatRolesInline(c.roles_found)}</span>
+          ${c.hiring_signals ? `<span><strong>Signals:</strong> ${esc(truncate(c.hiring_signals, 120))}</span>` : ''}
         </div>
+        ${c.keywords ? `<div class="result-card-tags">${c.keywords.split(',').map(k => `<span class="tag">${esc(k.trim())}</span>`).join('')}</div>` : ''}
         <div class="contacts-section" id="contacts-${c.id}">
           <div class="contacts-header">
             <h4>Contacts</h4>
@@ -446,7 +448,7 @@ function showEditContactForm(ct, companyId) {
 /* ── Helpers ──────────────────────────────────────────────────── */
 
 function formatRolesInline(rolesStr) {
-  if (!rolesStr) return '<em>None</em>';
+  if (!rolesStr) return '—';
   try {
     const roles = JSON.parse(rolesStr);
     if (Array.isArray(roles) && roles.length > 0) {
@@ -456,7 +458,7 @@ function formatRolesInline(rolesStr) {
       }).join(', ');
     }
   } catch {}
-  return esc(rolesStr) || '<em>None</em>';
+  return esc(rolesStr) || '—';
 }
 
 function signalBadge(strength) {
@@ -469,6 +471,11 @@ function esc(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function truncate(str, max) {
+  if (!str || str.length <= max) return str;
+  return str.slice(0, max).replace(/,?\s*$/, '') + '…';
 }
 
 /* ── Init ─────────────────────────────────────────────────────── */
