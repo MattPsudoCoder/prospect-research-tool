@@ -206,7 +206,7 @@ exportBtn.addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `prospects-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `prospects-${getCentralDateISO()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 });
@@ -242,10 +242,7 @@ function signalBadge(strength) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  });
+  return formatCentralDate(dateStr);
 }
 
 function formatRoles(rolesStr) {
