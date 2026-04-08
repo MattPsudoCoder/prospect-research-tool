@@ -85,4 +85,40 @@ Return ONLY the JSON object.`;
   }
 }
 
-module.exports = { generateTemplates };
+/**
+ * Clone templates from one contact to another, swapping name + title references.
+ * Saves an API call — same company context, just different person.
+ */
+function cloneTemplates(sourceTemplates, sourceName, sourceTitle, targetName, targetTitle) {
+  const cloned = {};
+  const srcFirst = sourceName.split(/\s+/)[0];
+  const tgtFirst = targetName.split(/\s+/)[0];
+
+  for (const [key, value] of Object.entries(sourceTemplates)) {
+    if (!value) continue;
+    let text = typeof value === 'object' && value.body
+      ? JSON.stringify(value)
+      : String(value);
+
+    // Replace full name, first name, and title
+    text = text.replace(new RegExp(escapeRegex(sourceName), 'g'), targetName);
+    text = text.replace(new RegExp(escapeRegex(srcFirst), 'g'), tgtFirst);
+    if (sourceTitle && targetTitle) {
+      text = text.replace(new RegExp(escapeRegex(sourceTitle), 'g'), targetTitle);
+    }
+
+    // Parse back if it was an object
+    if (typeof value === 'object') {
+      try { cloned[key] = JSON.parse(text); } catch { cloned[key] = text; }
+    } else {
+      cloned[key] = text;
+    }
+  }
+  return cloned;
+}
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+module.exports = { generateTemplates, cloneTemplates };

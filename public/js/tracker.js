@@ -118,6 +118,7 @@ async function loadTracker() {
           <h3>${esc(c.name)}</h3>
           <div class="result-card-badges">
             ${signalBadge(c.signal_strength)}
+            ${claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-all" data-company-id="${c.id}" style="background:#9b59b6">Generate All Scripts</button>` : ''}
             ${bhConnected ? `<button class="btn-bh btn-bh-push btn-sm btn-push-all" data-company-id="${c.id}">Push All to BH</button>` : ''}
             <button class="btn btn-danger btn-sm btn-remove" data-id="${c.id}">Remove</button>
           </div>
@@ -149,6 +150,9 @@ async function loadTracker() {
     });
     trackerList.querySelectorAll('.btn-add-contact').forEach(btn => {
       btn.addEventListener('click', () => showAddContactForm(parseInt(btn.dataset.companyId)));
+    });
+    trackerList.querySelectorAll('.btn-gen-all').forEach(btn => {
+      btn.addEventListener('click', () => generateBatchTemplates(parseInt(btn.dataset.companyId), btn));
     });
     trackerList.querySelectorAll('.btn-push-all').forEach(btn => {
       btn.addEventListener('click', () => pushAllContacts(parseInt(btn.dataset.companyId)));
@@ -272,6 +276,21 @@ async function generateTemplates(contactId, companyId) {
   } catch (err) {
     alert('Failed to generate templates: ' + err.message);
     if (btn) { btn.disabled = false; btn.textContent = 'Generate Scripts'; }
+  }
+}
+
+async function generateBatchTemplates(companyId, btn) {
+  btn.disabled = true; btn.textContent = 'Generating...';
+  try {
+    const res = await fetch(`/api/tracker/${companyId}/generate-batch-outreach`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    alert(`${data.message}`);
+    loadContacts(companyId);
+  } catch (err) {
+    alert('Failed: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Generate All Scripts';
   }
 }
 

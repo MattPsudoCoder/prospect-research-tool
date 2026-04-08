@@ -155,6 +155,73 @@ router.post('/contacts/:contactId/generate-outreach', async (req, res) => {
   }
 });
 
+// POST — batch generate outreach: generate for first contact, clone to rest (1 API call)
+router.post('/:companyId/generate-batch-outreach', async (req, res) => {
+  if (!outreach) return res.status(400).json({ error: 'Outreach generation requires an Anthropic API key.' });
+  try {
+    const contacts = await db.query(
+      'SELECT * FROM tracked_contacts WHERE tracked_company_id = $1 ORDER BY created_at ASC',
+      [req.params.companyId]
+    );
+    if (contacts.rows.length === 0) return res.status(404).json({ error: 'No contacts found' });
+
+    const companyResult = await db.query('SELECT * FROM tracked_companies WHERE id = $1', [req.params.companyId]);
+    if (companyResult.rows.length === 0) return res.status(404).json({ error: 'Company not found' });
+    const company = companyResult.rows[0];
+
+    // Find first contact without templates to use as the source
+    const needsGen = contacts.rows.filter(c => !c.outreach_templates || Object.keys(c.outreach_templates).length === 0);
+    const hasTemplates = contacts.rows.filter(c => c.outreach_templates && Object.keys(c.outreach_templates).length > 0);
+
+    let sourceContact, sourceTemplates;
+
+    if (hasTemplates.length > 0) {
+      // Reuse existing templates from a contact that already has them
+      sourceContact = hasTemplates[0];
+      sourceTemplates = sourceContact.outreach_templates;
+    } else if (needsGen.length > 0) {
+      // Generate for the first contact (1 API call)
+      sourceContact = needsGen[0];
+      const companyData = {
+        name: company.name,
+        hiring_signals: company.hiring_signals,
+        roles_found: company.roles_found,
+        keywords: company.keywords,
+        signal_types: '',
+      };
+      sourceTemplates = await outreach.generateTemplates(sourceContact, companyData);
+      await db.query('UPDATE tracked_contacts SET outreach_templates = $1 WHERE id = $2',
+        [JSON.stringify(sourceTemplates), sourceContact.id]);
+    } else {
+      return res.json({ generated: 0, message: 'All contacts already have templates' });
+    }
+
+    // Clone to all other contacts that don't have templates
+    let cloned = 0;
+    for (const ct of contacts.rows) {
+      if (ct.id === sourceContact.id) continue;
+      if (ct.outreach_templates && Object.keys(ct.outreach_templates).length > 0) continue;
+
+      const clonedTemplates = outreach.cloneTemplates(
+        sourceTemplates, sourceContact.name, sourceContact.title, ct.name, ct.title
+      );
+      await db.query('UPDATE tracked_contacts SET outreach_templates = $1 WHERE id = $2',
+        [JSON.stringify(clonedTemplates), ct.id]);
+      cloned++;
+    }
+
+    res.json({
+      generated: 1,
+      cloned,
+      total: 1 + cloned,
+      source: sourceContact.name,
+      message: `Generated for ${sourceContact.name}, cloned to ${cloned} others`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET — get outreach templates for a contact
 router.get('/contacts/:contactId/outreach', async (req, res) => {
   try {
