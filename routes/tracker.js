@@ -70,7 +70,7 @@ router.get('/:companyId/contacts', async (req, res) => {
   }
 });
 
-// POST — add a contact to a tracked company
+// POST — add a contact to a tracked company (auto-pushes to BH if connected)
 router.post('/:companyId/contacts', async (req, res) => {
   try {
     const { name, title, linkedin_url, email, phone } = req.body;
@@ -79,7 +79,44 @@ router.post('/:companyId/contacts', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [req.params.companyId, name, title || '', linkedin_url || '', email || '', phone || '']
     );
-    res.json(result.rows[0]);
+    const contact = result.rows[0];
+
+    // Auto-push to Bullhorn if connected
+    try {
+      const bh = require('../services/bullhorn');
+      if (bh.isConfigured().connected) {
+        const companyResult = await db.query('SELECT name FROM tracked_companies WHERE id = $1', [req.params.companyId]);
+        const companyName = companyResult.rows[0]?.name;
+        if (companyName) {
+          const nameParts = name.trim().split(/\s+/);
+          const firstName = nameParts[0];
+          const lastName = nameParts.slice(1).join(' ') || nameParts[0];
+
+          // Check if already in BH
+          const existing = await bh.searchContact(firstName, lastName);
+          if (existing.total > 0) {
+            const bhId = existing.data[0].id;
+            await db.query('UPDATE tracked_contacts SET bullhorn_id = $1, bullhorn_synced_at = NOW() WHERE id = $2', [bhId, contact.id]);
+            contact.bullhorn_id = bhId;
+          } else {
+            // Find company in BH, then create contact
+            const companySearch = await bh.searchCompany(companyName);
+            if (companySearch.data && companySearch.data.length > 0) {
+              const created = await bh.createContact({ firstName, lastName, companyId: companySearch.data[0].id, title: title || '', email: email || '', phone: phone || '' });
+              if (created.changedEntityId) {
+                await db.query('UPDATE tracked_contacts SET bullhorn_id = $1, bullhorn_synced_at = NOW() WHERE id = $2', [created.changedEntityId, contact.id]);
+                contact.bullhorn_id = created.changedEntityId;
+              }
+            }
+          }
+        }
+      }
+    } catch (bhErr) {
+      // BH push failed silently — contact still saved locally
+      console.log('Auto-push to BH failed:', bhErr.message);
+    }
+
+    res.json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -228,6 +265,54 @@ router.get('/contacts/:contactId/outreach', async (req, res) => {
     const result = await db.query('SELECT outreach_templates FROM tracked_contacts WHERE id = $1', [req.params.contactId]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Contact not found' });
     res.json(result.rows[0].outreach_templates || {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST — backfill: push all contacts without bullhorn_id to BH
+router.post('/backfill-bullhorn', async (req, res) => {
+  try {
+    const bh = require('../services/bullhorn');
+    if (!bh.isConfigured().connected) return res.status(400).json({ error: 'Bullhorn not connected' });
+
+    const contacts = await db.query(
+      `SELECT tc.*, tco.name as company_name
+       FROM tracked_contacts tc
+       JOIN tracked_companies tco ON tc.tracked_company_id = tco.id
+       WHERE tc.bullhorn_id IS NULL
+       ORDER BY tco.name, tc.name`
+    );
+
+    let pushed = 0, linked = 0, skipped = 0, errors = 0;
+    for (const ct of contacts.rows) {
+      try {
+        const nameParts = ct.name.trim().split(/\s+/);
+        const firstName = nameParts[0];
+        const lastName = nameParts.slice(1).join(' ') || nameParts[0];
+
+        const existing = await bh.searchContact(firstName, lastName);
+        if (existing.total > 0) {
+          await db.query('UPDATE tracked_contacts SET bullhorn_id = $1, bullhorn_synced_at = NOW() WHERE id = $2', [existing.data[0].id, ct.id]);
+          linked++;
+        } else {
+          const companySearch = await bh.searchCompany(ct.company_name);
+          if (companySearch.data && companySearch.data.length > 0) {
+            const created = await bh.createContact({ firstName, lastName, companyId: companySearch.data[0].id, title: ct.title || '', email: ct.email || '', phone: ct.phone || '' });
+            if (created.changedEntityId) {
+              await db.query('UPDATE tracked_contacts SET bullhorn_id = $1, bullhorn_synced_at = NOW() WHERE id = $2', [created.changedEntityId, ct.id]);
+              pushed++;
+            } else { skipped++; }
+          } else { skipped++; }
+        }
+        await new Promise(r => setTimeout(r, 300));
+      } catch (err) {
+        errors++;
+        console.log(`Backfill error for ${ct.name}:`, err.message);
+      }
+    }
+
+    res.json({ total: contacts.rows.length, pushed, linked, skipped, errors });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
