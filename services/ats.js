@@ -75,10 +75,27 @@ function isRelevantRole(title, keywords) {
 }
 
 /**
+ * Check if a job location matches the ICP geography (default: United States).
+ */
+function isRelevantLocation(job, geography) {
+  if (!geography) return true;
+  const geo = geography.toLowerCase();
+  // Greenhouse: job.location.name — e.g. "United States (Remote)"
+  const locName = (job.location?.name || '').toLowerCase();
+  // Lever: job.categories?.location — e.g. "Remote, US"
+  const locCat = (job.categories?.location || '').toLowerCase();
+  const combined = `${locName} ${locCat}`;
+  if (geo.includes('united states') || geo.includes('us')) {
+    return combined.includes('united states') || combined.includes('usa') || combined.includes(', us') || combined.includes('remote') && !combined.includes('india') && !combined.includes('germany') && !combined.includes('sweden') && !combined.includes('canada') && !combined.includes('uk') && !combined.includes('europe');
+  }
+  return combined.includes(geo);
+}
+
+/**
  * Check Greenhouse public job board.
  * Returns { ats: 'Greenhouse', roles: [...], count: N } or null.
  */
-async function checkGreenhouse(companyName, roleKeywords) {
+async function checkGreenhouse(companyName, roleKeywords, geography) {
   const slug = slugify(companyName);
   const url = `https://api.greenhouse.io/v1/boards/${slug}/jobs`;
 
@@ -89,12 +106,12 @@ async function checkGreenhouse(companyName, roleKeywords) {
     const jobs = data.jobs || [];
     if (jobs.length === 0) return null;
 
-    // Filter to ICP-relevant roles only, keep title + URL
-    const relevant = jobs.filter((j) => isRelevantRole(j.title, roleKeywords));
+    // Filter to ICP-relevant roles AND locations
+    const relevant = jobs.filter((j) => isRelevantRole(j.title, roleKeywords) && isRelevantLocation(j, geography));
 
     return {
       ats: 'Greenhouse',
-      roles: relevant.slice(0, 8).map((j) => ({ title: j.title, url: j.absolute_url || '' })),
+      roles: relevant.slice(0, 8).map((j) => ({ title: j.title, url: j.absolute_url || '', location: j.location?.name || '' })),
       count: jobs.length,
       relevant_count: relevant.length,
     };
@@ -106,7 +123,7 @@ async function checkGreenhouse(companyName, roleKeywords) {
 /**
  * Check Lever public postings.
  */
-async function checkLever(companyName, roleKeywords) {
+async function checkLever(companyName, roleKeywords, geography) {
   const slug = slugify(companyName);
   const url = `https://api.lever.co/v0/postings/${slug}`;
 
@@ -116,8 +133,8 @@ async function checkLever(companyName, roleKeywords) {
     const jobs = await res.json();
     if (!Array.isArray(jobs) || jobs.length === 0) return null;
 
-    // Filter to ICP-relevant roles only, keep title + URL
-    const relevant = jobs.filter((j) => isRelevantRole(j.text, roleKeywords));
+    // Filter to ICP-relevant roles AND locations
+    const relevant = jobs.filter((j) => isRelevantRole(j.text, roleKeywords) && isRelevantLocation(j, geography));
 
     return {
       ats: 'Lever',
@@ -137,13 +154,14 @@ async function checkLever(companyName, roleKeywords) {
  */
 async function detectATS(companyName, icp) {
   const roleKeywords = buildRoleKeywords(icp);
+  const geography = icp?.geography || 'United States';
 
   // Try Greenhouse first
-  const gh = await checkGreenhouse(companyName, roleKeywords);
+  const gh = await checkGreenhouse(companyName, roleKeywords, geography);
   if (gh) return gh;
 
   // Try Lever
-  const lv = await checkLever(companyName, roleKeywords);
+  const lv = await checkLever(companyName, roleKeywords, geography);
   if (lv) return lv;
 
   // Fallback: Claude web search for other ATS platforms

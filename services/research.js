@@ -82,11 +82,13 @@ async function researchCompany(companyName, source, icp) {
   // ── Tier 1: Greenhouse + Lever (fast, structured) ──────────
   let atsResult = { ats: 'None detected', roles: [], count: 0, relevant_count: 0 };
   try {
-    const gh = await ats.checkGreenhouse(companyName, ats.buildRoleKeywords ? ats.buildRoleKeywords(icp) : undefined);
+    const roleKeywords = ats.buildRoleKeywords ? ats.buildRoleKeywords(icp) : undefined;
+    const geography = icp?.geography || 'United States';
+    const gh = await ats.checkGreenhouse(companyName, roleKeywords, geography);
     if (gh) {
       atsResult = gh;
     } else {
-      const lv = await ats.checkLever(companyName, ats.buildRoleKeywords ? ats.buildRoleKeywords(icp) : undefined);
+      const lv = await ats.checkLever(companyName, roleKeywords, geography);
       if (lv) atsResult = lv;
     }
   } catch (err) {
