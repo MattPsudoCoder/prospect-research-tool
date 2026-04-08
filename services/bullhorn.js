@@ -9,7 +9,7 @@
 /* ── credential cache ─────────────────────────────────────────── */
 
 let manualCache = { bhRestToken: null, restUrl: null, receivedAt: 0 };
-const MANUAL_TTL = 8 * 60 * 1000;   // 8 min (BH tokens last ~10 min)
+const MANUAL_TTL = 60 * 60 * 1000;   // 60 min (BH tokens last longer than docs say — extend and let 401 catch expiry)
 
 /* ── auth helpers ─────────────────────────────────────────────── */
 
