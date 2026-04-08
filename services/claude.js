@@ -9,6 +9,19 @@ function getClient() {
   return client;
 }
 
+async function withRetry(fn, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === maxRetries) throw err;
+      const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
+      console.warn(`Claude API error (attempt ${attempt + 1}/${maxRetries + 1}): ${err.message}. Retrying in ${delay}ms...`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
 /**
  * Extract a JSON object or array from a string, handling nested structures.
  * Finds the first { or [ and counts brackets to find the matching close.
@@ -53,12 +66,14 @@ Focus on companies that show signs of active hiring or growth (recent funding, e
 
 Return ONLY a JSON array of company names, no commentary. Example: ["Acme Corp","Beta Inc"]`;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 10 }],
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const response = await withRetry(() =>
+    anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 10 }],
+      messages: [{ role: 'user', content: prompt }],
+    })
+  );
 
   // Extract the final text block from the response
   const textBlock = response.content.filter((b) => b.type === 'text').pop();
@@ -86,32 +101,38 @@ async function researchCompany(companyName, icp) {
     ? `\n6. Specifically look for these signals: ${icp.hiring_signals}`
     : '';
 
-  const prompt = `Research the company "${companyName}" for hiring and growth signals. Look for:
-1. Recent funding rounds or revenue milestones
-2. Executive or leadership hires
+  const prompt = `Research the company "${companyName}" for hiring and growth signals. Investigate:
+1. Recent funding rounds or revenue milestones (amount, date, investors)
+2. Executive or leadership hires (especially engineering/tech leaders)
 3. Office expansions or new locations
-4. Job posting velocity (are they posting lots of roles?)
-5. Any layoffs or freezes (negative signals)${signalContext}
+4. Job posting velocity (how many open engineering roles?)
+5. Any layoffs or freezes (negative signals)
+6. Tech stack — what languages, frameworks, and infrastructure do they use? Check their careers page job descriptions, engineering blog, or StackShare/GitHub for clues${signalContext}
 
 Also search for their careers page URL if you can find it.${roleContext}
 
 Return a JSON object with this exact structure:
 {
-  "hiring_signals": "brief summary of signals found",
-  "keywords": "comma-separated keywords like: funding, expansion, exec-hire, high-growth",
+  "hiring_signals": "Funding: $60M Series C (Sep 2024, led by Scale Ventures). Growth: expanding engineering team. Leadership: hired new VP Eng in Q1.",
+  "tech_stack": "Python, Go, React, TypeScript, AWS, Kubernetes, PostgreSQL",
+  "keywords": "series-c, high-growth, expanding-eng-team",
   "signal_strength": "High" or "Medium" or "Low",
   "careers_page": "URL or empty string",
   "details": "2-3 sentence summary"
 }
 
+For hiring_signals, use short labeled sections (Funding:, Growth:, Leadership:, Risk:) rather than one long paragraph. For tech_stack, list the specific languages, frameworks, databases, and cloud platforms — this is critical for matching candidates. If you can't determine the tech stack, return an empty string.
+
 Return ONLY the JSON, no other text.`;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const response = await withRetry(() =>
+    anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+      messages: [{ role: 'user', content: prompt }],
+    })
+  );
 
   const textBlock = response.content.filter((b) => b.type === 'text').pop();
   if (!textBlock) {
@@ -154,12 +175,14 @@ Return a JSON object:
 
 Include up to 5 RELEVANT roles with direct links to the job posting. Return ONLY the JSON.`;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }],
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const response = await withRetry(() =>
+    anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }],
+      messages: [{ role: 'user', content: prompt }],
+    })
+  );
 
   const textBlock = response.content.filter((b) => b.type === 'text').pop();
   if (!textBlock) return { ats_found: '', sample_roles: '', job_count_estimate: 0 };

@@ -180,14 +180,14 @@ async function processCompanies(runId, companies, icp) {
       if (result.gated_out) gated++;
 
       await db.query(
-        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength,
+        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, tech_stack, keywords, signal_strength,
          score_overall, score_details, recommendation, signal_types, in_bullhorn, bullhorn_status, last_activity,
          gated_out, gate_reason, raw_research)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
         [
           runId, result.name, result.source, result.ats_detected,
-          result.roles_found, result.hiring_signals, result.keywords,
-          result.signal_strength, result.score_overall,
+          result.roles_found, result.hiring_signals, result.tech_stack || '',
+          result.keywords, result.signal_strength, result.score_overall,
           result.score_details, result.recommendation,
           result.signal_types, result.in_bullhorn || false,
           result.bullhorn_status || '', result.last_activity || '',
@@ -249,9 +249,9 @@ router.get('/:runId/export', async (req, res) => {
   const { stringify } = require('csv-stringify/sync');
   try {
     const result = await db.query(
-      `SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength,
+      `SELECT name, source, ats_detected, roles_found, hiring_signals, tech_stack, keywords, signal_strength,
               score_overall, recommendation, signal_types, in_bullhorn, bullhorn_status, last_activity, gated_out, gate_reason
-       FROM companies WHERE run_id = $1 ORDER BY score_overall DESC NULLS LAST`,
+       FROM companies WHERE run_id = $1 ORDER BY score_overall DESC NULLS LAST, CASE signal_strength WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END`,
       [req.params.runId]
     );
     const rows = result.rows.map((r) => ({ ...r, roles_found: flattenRoles(r.roles_found) }));
@@ -266,6 +266,8 @@ router.get('/:runId/export', async (req, res) => {
         { key: 'ats_detected', header: 'ATS' },
         { key: 'roles_found', header: 'Roles' },
         { key: 'hiring_signals', header: 'Signals' },
+        { key: 'tech_stack', header: 'Tech Stack' },
+        { key: 'keywords', header: 'Keywords' },
         { key: 'signal_strength', header: 'Strength' },
         { key: 'in_bullhorn', header: 'In BH' },
         { key: 'bullhorn_status', header: 'BH Status' },

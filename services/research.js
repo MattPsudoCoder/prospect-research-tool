@@ -172,6 +172,7 @@ async function researchCompany(companyName, source, icp) {
     ats_detected: atsResult.ats || 'None detected',
     roles_found: JSON.stringify(atsResult.roles),
     hiring_signals: signals.hiring_signals || '',
+    tech_stack: signals.tech_stack || '',
     keywords: signals.keywords || '',
     signal_strength: score.signal_strength,
     score_overall: score.overall,

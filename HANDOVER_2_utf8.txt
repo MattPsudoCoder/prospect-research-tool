@@ -1,0 +1,895 @@
+﻿# ProspectResearch — AI Assistant Handover Document
+
+**Last updated:** March 17, 2026
+**Owner:** Matthew — Technical Recruiter, North America
+**Live app:** https://prospect-research-tool-production.up.railway.app
+**GitHub repo:** https://github.com/MattPsudoCoder/prospect-research-tool
+
+---
+
+## 1. WHO MATTHEW IS
+
+Matthew is a technical recruiter based in North America. He places:
+
+- Software Engineers (TypeScript, React, Node.js, Next.js)
+- Mobile Engineers (iOS, Android)
+- Backend Engineers (Scala, Java, Python)
+- Full Stack Engineers
+- SDETs / QA Automation Engineers
+- Engineering Managers
+
+His target companies have 100–1,000 employees and are located in the United States and Canada.
+
+---
+
+## 2. WHAT THIS APP DOES
+
+ProspectResearch is a full-stack web application that automates prospect research for recruiting. It takes company names from three input sources, deduplicates them, researches each company for hiring signals, checks their ATS (Applicant Tracking System) job boards, then compares against Bullhorn CRM to flag existing clients and prior activity.
+
+### The Three Input Sources
+
+1. **Manual paste or CSV upload** — user types or uploads company names
+2. **ZoomInfo CSV export** — Matthew has a ZoomInfo Advanced plan; exports are uploaded as CSV
+3. **Claude-powered ICP search** — uses saved ICP (Ideal Client Profile) settings to have Claude find matching companies via web search
+
+### The Pipeline (per company)
+
+1. Deduplicate across all three sources
+2. Research using Claude web search: funding news, exec hires, expansion, job velocity
+3. Check Greenhouse public API (direct API call)
+4. Check Lever public API (direct API call)
+5. Check Ashby via Claude web search
+6. Check company careers page via Claude web search
+7. Fallback: Workable, SmartRecruiters, Teamtailor, Google for Jobs via Claude web search
+8. Compare against Bullhorn CRM (currently inert — see Section 8)
+
+### Output Table Columns
+
+Company Name | Source | ATS Detected | Roles Found | Hiring Signals | Keywords | Signal Strength (High/Medium/Low) | In Bullhorn | Bullhorn Status | Last Activity
+
+---
+
+## 3. TECH STACK
+
+- **Backend:** Node.js with Express
+- **Database:** PostgreSQL hosted on Railway ($5/month)
+- **Frontend:** HTML/CSS/JS (vanilla — no framework)
+- **Hosting:** Railway Hobby plan (~$5/month total)
+- **AI:** Anthropic API (claude-sonnet-4-6 model) with web search tool for all pipeline calls
+- **Built using:** Claude Cowork (no local development environment was used initially)
+
+---
+
+## 4. REPO STRUCTURE
+
+```
+prospect-research-tool/
+├── db/
+│   └── db.js                  # PostgreSQL connection pool (uses DATABASE_URL env var)
+├── public/
+│   ├── css/                   # Stylesheets
+│   ├── js/
+│   │   └── icp.js             # ICP settings page frontend logic
+│   ├── index.html             # Main pipeline page
+│   └── icp.html               # ICP settings page
+├── routes/
+│   ├── icp.js                 # ICP settings CRUD endpoints
+│   └── pipeline.js            # Pipeline orchestration, SSE progress, CSV export
+├── services/
+│   ├── ats.js                 # ATS detection: Greenhouse API, Lever API, Claude fallback
+│   ├── bullhorn.js            # Bullhorn CRM OAuth + company lookup (currently inert)
+│   ├── claude.js              # Claude API calls: ICP search, company research, ATS fallback
+│   ├── dedup.js               # Deduplication logic
+│   └── research.js            # Per-company research orchestrator (ties claude + ats + bullhorn together)
+├── .env.example               # Template for environment variables
+├── .gitignore
+├── CODEBASE_AUDIT.md          # Code audit file (created during development)
+├── package.json
+├── railway.json               # Railway deployment config
+└── server.js                  # Express server entry point
+```
+
+---
+
+## 5. COMPLETE CODE — ALL CRITICAL FILES
+
+### 5.1 services/claude.js — Claude API Integration
+
+This file contains three functions that call the Anthropic API with web search:
+
+```javascript
+const Anthropic = require('@anthropic-ai/sdk');
+
+let client = null;
+function getClient() {
+  if (!client) {
+    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return client;
+}
+
+/**
+ * Use Claude with web search to find companies matching ICP criteria.
+ * Returns an array of company name strings.
+ */
+async function searchCompaniesByICP(icp) {
+  const anthropic = getClient();
+  const prompt = `You are a technical recruiter's research assistant. Find 10-20 real companies that match these Ideal Client Profile criteria:
+
+- Industry: ${icp.industry_sector}
+- Company size: ${icp.company_size_min} – ${icp.company_size_max} employees
+- Geography: ${icp.geography}
+- Role types they'd hire: ${icp.role_types}
+
+Focus on companies that show signs of active hiring or growth (recent funding, expansion, new offices, leadership hires).
+
+Return ONLY a JSON array of company names, no commentary. Example: ["Acme Corp","Beta Inc"]`;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2048,
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 10 }],
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textBlock = response.content.filter((b) => b.type === 'text').pop();
+  if (!textBlock) return [];
+
+  try {
+    const match = textBlock.text.match(/\[[\s\S]*?\]/);
+    return match ? JSON.parse(match[0]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Use Claude with web search to research hiring signals for a company.
+ */
+async function researchCompany(companyName) {
+  const anthropic = getClient();
+  const prompt = `Research the company "${companyName}" for hiring and growth signals. Look for:
+1. Recent funding rounds or revenue milestones
+2. Executive or leadership hires
+3. Office expansions or new locations
+4. Job posting velocity (are they posting lots of roles?)
+5. Any layoffs or freezes (negative signals)
+
+Also search for their careers page URL if you can find it.
+
+Return a JSON object with this exact structure:
+{
+  "hiring_signals": "brief summary of signals found",
+  "keywords": "comma-separated keywords like: funding, expansion, exec-hire, high-growth",
+  "signal_strength": "High" or "Medium" or "Low",
+  "careers_page": "URL or empty string",
+  "details": "2-3 sentence summary"
+}
+
+Return ONLY the JSON, no other text.`;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2048,
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textBlock = response.content.filter((b) => b.type === 'text').pop();
+  if (!textBlock) {
+    return { hiring_signals: '', keywords: '', signal_strength: 'Low', careers_page: '', details: '' };
+  }
+
+  try {
+    const match = textBlock.text.match(/\{[\s\S]*?\}/);
+    return match
+      ? JSON.parse(match[0])
+      : { hiring_signals: '', keywords: '', signal_strength: 'Low', careers_page: '', details: '' };
+  } catch {
+    return {
+      hiring_signals: textBlock.text.slice(0, 300),
+      keywords: '',
+      signal_strength: 'Low',
+      careers_page: '',
+      details: '',
+    };
+  }
+}
+
+/**
+ * Use Claude with web search to check Ashby, careers pages, and fallback ATS platforms.
+ */
+async function searchATSFallback(companyName) {
+  const anthropic = getClient();
+  const prompt = `Search for job postings from "${companyName}" on these platforms:
+1. Ashby (jobs.ashbyhq.com/${companyName.toLowerCase().replace(/\s+/g, '')})
+2. Workable (apply.workable.com)
+3. SmartRecruiters (jobs.smartrecruiters.com)
+4. Teamtailor
+5. Google for Jobs — search: "${companyName} careers jobs"
+6. Their own careers page
+
+Return a JSON object:
+{
+  "ats_found": "name of ATS platform found, or empty string",
+  "sample_roles": "up to 5 role titles comma-separated, or empty string",
+  "job_count_estimate": 0
+}
+
+Return ONLY the JSON.`;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }],
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textBlock = response.content.filter((b) => b.type === 'text').pop();
+  if (!textBlock) return { ats_found: '', sample_roles: '', job_count_estimate: 0 };
+
+  try {
+    const match = textBlock.text.match(/\{[\s\S]*?\}/);
+    return match
+      ? JSON.parse(match[0])
+      : { ats_found: '', sample_roles: '', job_count_estimate: 0 };
+  } catch {
+    return { ats_found: '', sample_roles: '', job_count_estimate: 0 };
+  }
+}
+
+module.exports = { searchCompaniesByICP, researchCompany, searchATSFallback };
+```
+
+### 5.2 services/ats.js — ATS Detection Chain
+
+```javascript
+const claude = require('./claude');
+
+function slugify(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+async function checkGreenhouse(companyName) {
+  const slug = slugify(companyName);
+  const url = `https://api.greenhouse.io/v1/boards/${slug}/jobs`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const jobs = data.jobs || [];
+    if (jobs.length === 0) return null;
+    return {
+      ats: 'Greenhouse',
+      roles: jobs.slice(0, 5).map((j) => j.title),
+      count: jobs.length,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function checkLever(companyName) {
+  const slug = slugify(companyName);
+  const url = `https://api.lever.co/v0/postings/${slug}`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const jobs = await res.json();
+    if (!Array.isArray(jobs) || jobs.length === 0) return null;
+    return {
+      ats: 'Lever',
+      roles: jobs.slice(0, 5).map((j) => j.text),
+      count: jobs.length,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function detectATS(companyName) {
+  const gh = await checkGreenhouse(companyName);
+  if (gh) return gh;
+
+  const lv = await checkLever(companyName);
+  if (lv) return lv;
+
+  const fallback = await claude.searchATSFallback(companyName);
+  if (fallback.ats_found) {
+    return {
+      ats: fallback.ats_found,
+      roles: fallback.sample_roles ? fallback.sample_roles.split(',').map((r) => r.trim()) : [],
+      count: fallback.job_count_estimate || 0,
+    };
+  }
+
+  return { ats: 'None detected', roles: [], count: 0 };
+}
+
+module.exports = { detectATS, checkGreenhouse, checkLever };
+```
+
+### 5.3 services/research.js — Per-Company Orchestrator
+
+```javascript
+const claude = require('./claude');
+const ats = require('./ats');
+const bullhorn = require('./bullhorn');
+
+async function researchCompany(companyName, source) {
+  // Run research and ATS detection in parallel
+  const [signals, atsResult] = await Promise.all([
+    claude.researchCompany(companyName),
+    ats.detectATS(companyName),
+  ]);
+
+  // Check Bullhorn (only if configured)
+  let bullhornResult = { found: false };
+  if (bullhorn.isConfigured()) {
+    bullhornResult = await bullhorn.checkCompany(companyName);
+  }
+
+  return {
+    name: companyName,
+    source,
+    ats_detected: atsResult.ats || 'None detected',
+    roles_found: atsResult.roles.join(', '),
+    hiring_signals: signals.hiring_signals || '',
+    keywords: signals.keywords || '',
+    signal_strength: signals.signal_strength || 'Low',
+    in_bullhorn: bullhornResult.found || false,
+    bullhorn_status: bullhornResult.status || '',
+    last_activity: bullhornResult.lastActivity || '',
+    raw_research: {
+      signals,
+      ats: atsResult,
+      bullhorn: bullhornResult,
+    },
+  };
+}
+
+module.exports = { researchCompany };
+```
+
+### 5.4 services/dedup.js — Deduplication
+
+```javascript
+function normalise(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[.,]/g, '')
+    .replace(/\b(inc|llc|ltd|corp|corporation|co|company|group|holdings|plc|gmbh|sa|ag)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function deduplicate(companies) {
+  const seen = new Map();
+  for (const { name, source } of companies) {
+    if (!name || !name.trim()) continue;
+    const key = normalise(name);
+    if (seen.has(key)) {
+      const entry = seen.get(key);
+      if (!entry.sources.includes(source)) {
+        entry.sources.push(source);
+      }
+    } else {
+      seen.set(key, { name: name.trim(), sources: [source] });
+    }
+  }
+  return Array.from(seen.values()).map(({ name, sources }) => ({
+    name,
+    source: sources.join(', '),
+  }));
+}
+
+module.exports = { deduplicate, normalise };
+```
+
+### 5.5 services/bullhorn.js — Bullhorn CRM Integration (Currently Inert)
+
+```javascript
+let tokenCache = { accessToken: null, restUrl: null, expiresAt: 0 };
+
+async function authenticate() {
+  if (tokenCache.accessToken && Date.now() < tokenCache.expiresAt) {
+    return tokenCache;
+  }
+
+  const { BULLHORN_CLIENT_ID, BULLHORN_CLIENT_SECRET, BULLHORN_USERNAME, BULLHORN_PASSWORD } = process.env;
+  if (!BULLHORN_CLIENT_ID || !BULLHORN_CLIENT_SECRET) {
+    throw new Error('Bullhorn credentials not configured');
+  }
+
+  // Step 1: Get authorization code
+  const authUrl = new URL('https://auth.bullhornstaffing.com/oauth/authorize');
+  authUrl.searchParams.set('client_id', BULLHORN_CLIENT_ID);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('action', 'Login');
+  authUrl.searchParams.set('username', BULLHORN_USERNAME);
+  authUrl.searchParams.set('password', BULLHORN_PASSWORD);
+
+  const authRes = await fetch(authUrl.toString(), { redirect: 'manual' });
+  const location = authRes.headers.get('location') || '';
+  const codeMatch = location.match(/code=([^&]+)/);
+  if (!codeMatch) throw new Error('Failed to get Bullhorn auth code');
+  const code = codeMatch[1];
+
+  // Step 2: Exchange code for access token
+  const tokenUrl = 'https://auth.bullhornstaffing.com/oauth/token';
+  const tokenBody = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    client_id: BULLHORN_CLIENT_ID,
+    client_secret: BULLHORN_CLIENT_SECRET,
+  });
+
+  const tokenRes = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: tokenBody.toString(),
+  });
+  const tokenData = await tokenRes.json();
+  if (!tokenData.access_token) throw new Error('Failed to get Bullhorn access token');
+
+  // Step 3: REST login
+  const loginUrl = `https://rest.bullhornstaffing.com/rest-services/login?version=*&access_token=${tokenData.access_token}`;
+  const loginRes = await fetch(loginUrl, { method: 'POST' });
+  const loginData = await loginRes.json();
+  if (!loginData.BhRestToken) throw new Error('Failed to get Bullhorn REST token');
+
+  tokenCache = {
+    accessToken: loginData.BhRestToken,
+    restUrl: loginData.restUrl,
+    expiresAt: Date.now() + 4 * 60 * 1000,
+  };
+  return tokenCache;
+}
+
+async function checkCompany(companyName) {
+  try {
+    const { accessToken, restUrl } = await authenticate();
+    const searchUrl = `${restUrl}search/ClientCorporation?query=name:"${encodeURIComponent(companyName)}"&fields=id,name,status,dateAdded,owner&count=1&BhRestToken=${accessToken}`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+
+    if (!searchData.data || searchData.data.length === 0) {
+      return { found: false };
+    }
+
+    const corp = searchData.data[0];
+    let lastActivity = '';
+    try {
+      const notesUrl = `${restUrl}entity/ClientCorporation/${corp.id}/allCorpNotes?fields=action,dateAdded&count=1&orderBy=-dateAdded&BhRestToken=${accessToken}`;
+      const notesRes = await fetch(notesUrl);
+      const notesData = await notesRes.json();
+      if (notesData.data && notesData.data.length > 0) {
+        const note = notesData.data[0];
+        const date = new Date(note.dateAdded);
+        lastActivity = date.toISOString().split('T')[0];
+      }
+    } catch {
+      // Notes fetch failed — non-critical
+    }
+
+    return {
+      found: true,
+      id: corp.id,
+      name: corp.name,
+      status: corp.status || 'Unknown',
+      dateAdded: corp.dateAdded ? new Date(corp.dateAdded).toISOString().split('T')[0] : '',
+      owner: corp.owner ? `${corp.owner.firstName} ${corp.owner.lastName}` : '',
+      lastActivity,
+    };
+  } catch (err) {
+    console.error(`Bullhorn check failed for "${companyName}":`, err.message);
+    return { found: false, error: err.message };
+  }
+}
+
+function isConfigured() {
+  return !!(process.env.BULLHORN_CLIENT_ID && process.env.BULLHORN_CLIENT_SECRET);
+}
+
+module.exports = { checkCompany, isConfigured, authenticate };
+```
+
+### 5.6 routes/pipeline.js — Pipeline Orchestration & SSE Progress
+
+```javascript
+const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+const { parse } = require('csv-parse/sync');
+const db = require('../db/db');
+const { deduplicate } = require('../services/dedup');
+const { researchCompany } = require('../services/research');
+const claude = require('../services/claude');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const activeRuns = new Map();
+
+router.post(
+  '/run',
+  upload.fields([
+    { name: 'csvFile', maxCount: 1 },
+    { name: 'zoominfoFile', maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const { manualNames, useICP, runName } = req.body;
+      const allCompanies = [];
+
+      // Source 1: Manual paste
+      if (manualNames && manualNames.trim()) {
+        const names = manualNames.split(/[\n,]+/).map((n) => n.trim()).filter(Boolean);
+        names.forEach((name) => allCompanies.push({ name, source: 'Manual' }));
+      }
+
+      // Source 2: CSV upload
+      if (req.files?.csvFile?.[0]) {
+        const csvText = req.files.csvFile[0].buffer.toString('utf8');
+        const records = parse(csvText, { columns: false, skip_empty_lines: true, relax_column_count: true });
+        for (const row of records) {
+          const name = row[0]?.trim();
+          if (name && name.toLowerCase() !== 'company' && name.toLowerCase() !== 'company name') {
+            allCompanies.push({ name, source: 'CSV Upload' });
+          }
+        }
+      }
+
+      // Source 3: ZoomInfo CSV
+      if (req.files?.zoominfoFile?.[0]) {
+        const csvText = req.files.zoominfoFile[0].buffer.toString('utf8');
+        const records = parse(csvText, { columns: true, skip_empty_lines: true, relax_column_count: true });
+        for (const row of records) {
+          const name = row['Company Name'] || row['company name'] || row['Company'] || Object.values(row)[0];
+          if (name?.trim()) {
+            allCompanies.push({ name: name.trim(), source: 'ZoomInfo' });
+          }
+        }
+      }
+
+      // Source 4: ICP-based Claude search
+      if (useICP === 'true') {
+        const icpResult = await db.query('SELECT * FROM icp_settings ORDER BY id DESC LIMIT 1');
+        if (icpResult.rows.length > 0) {
+          const icpCompanies = await claude.searchCompaniesByICP(icpResult.rows[0]);
+          icpCompanies.forEach((name) => allCompanies.push({ name, source: 'ICP Search' }));
+        }
+      }
+
+      if (allCompanies.length === 0) {
+        return res.status(400).json({ error: 'No companies provided.' });
+      }
+
+      const unique = deduplicate(allCompanies);
+
+      const runResult = await db.query(
+        `INSERT INTO pipeline_runs (name, status, total_companies) VALUES ($1, 'running', $2) RETURNING *`,
+        [runName || `Run ${new Date().toLocaleString()}`, unique.length]
+      );
+      const run = runResult.rows[0];
+
+      activeRuns.set(run.id, { total: unique.length, processed: 0, status: 'running' });
+
+      processCompanies(run.id, unique).catch((err) => {
+        console.error('Pipeline error:', err);
+        activeRuns.set(run.id, { ...activeRuns.get(run.id), status: 'error', error: err.message });
+      });
+
+      res.json({ runId: run.id, totalCompanies: unique.length, status: 'running' });
+    } catch (err) {
+      console.error('Pipeline start error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+async function processCompanies(runId, companies) {
+  for (let i = 0; i < companies.length; i++) {
+    const { name, source } = companies[i];
+    try {
+      const result = await researchCompany(name, source);
+      await db.query(
+        `INSERT INTO companies (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity, raw_research)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [runId, result.name, result.source, result.ats_detected, result.roles_found, result.hiring_signals, result.keywords, result.signal_strength, result.in_bullhorn, result.bullhorn_status, result.last_activity, JSON.stringify(result.raw_research)]
+      );
+    } catch (err) {
+      console.error(`Research failed for "${name}":`, err.message);
+      await db.query(
+        `INSERT INTO companies (run_id, name, source, hiring_signals, signal_strength) VALUES ($1,$2,$3,$4,$5)`,
+        [runId, name, source, `Error: ${err.message}`, 'Low']
+      );
+    }
+
+    await db.query('UPDATE pipeline_runs SET processed_companies = $1 WHERE id = $2', [i + 1, runId]);
+    if (activeRuns.has(runId)) {
+      activeRuns.get(runId).processed = i + 1;
+    }
+  }
+
+  await db.query("UPDATE pipeline_runs SET status = 'completed', completed_at = NOW() WHERE id = $1", [runId]);
+  if (activeRuns.has(runId)) {
+    activeRuns.get(runId).status = 'completed';
+  }
+}
+
+// SSE progress endpoint
+router.get('/:runId/progress', (req, res) => {
+  const runId = parseInt(req.params.runId);
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+
+  const interval = setInterval(async () => {
+    const progress = activeRuns.get(runId);
+    if (progress) {
+      res.write(`data: ${JSON.stringify(progress)}\n\n`);
+      if (progress.status === 'completed' || progress.status === 'error') {
+        clearInterval(interval);
+        activeRuns.delete(runId);
+        res.end();
+      }
+    } else {
+      try {
+        const result = await db.query('SELECT * FROM pipeline_runs WHERE id = $1', [runId]);
+        if (result.rows.length > 0) {
+          const run = result.rows[0];
+          res.write(`data: ${JSON.stringify({ total: run.total_companies, processed: run.processed_companies, status: run.status })}\n\n`);
+          if (run.status === 'completed' || run.status === 'error') {
+            clearInterval(interval);
+            res.end();
+          }
+        }
+      } catch {
+        clearInterval(interval);
+        res.end();
+      }
+    }
+  }, 1500);
+
+  req.on('close', () => clearInterval(interval));
+});
+
+// CSV export endpoint
+router.get('/:runId/export', async (req, res) => {
+  const { stringify } = require('csv-stringify/sync');
+  try {
+    const result = await db.query(
+      'SELECT name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity FROM companies WHERE run_id = $1 ORDER BY signal_strength DESC',
+      [req.params.runId]
+    );
+    const csv = stringify(result.rows, {
+      header: true,
+      columns: [
+        { key: 'name', header: 'Company Name' },
+        { key: 'source', header: 'Source' },
+        { key: 'ats_detected', header: 'ATS Detected' },
+        { key: 'roles_found', header: 'Roles Found' },
+        { key: 'hiring_signals', header: 'Hiring Signals' },
+        { key: 'keywords', header: 'Keywords' },
+        { key: 'signal_strength', header: 'Signal Strength' },
+        { key: 'in_bullhorn', header: 'In Bullhorn' },
+        { key: 'bullhorn_status', header: 'Bullhorn Status' },
+        { key: 'last_activity', header: 'Last Activity' },
+      ],
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=prospect-research-run-${req.params.runId}.csv`);
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
+```
+
+---
+
+## 6. ICP SETTINGS
+
+These are the Ideal Client Profile settings saved in the app's database:
+
+| Field | Value |
+|---|---|
+| Industry | All industries EXCEPT: Management Consulting, IT Consulting, Staffing & Recruitment, Government / Public Sector, Non-profit / NGO |
+| Min Employees | 100 |
+| Max Employees | 1,000 |
+| Geography | United States, Canada |
+| Role Types | Software Engineers (TypeScript, React, Node.js, Next.js), Mobile Engineers (iOS, Android), Backend Engineers (Scala, Java, Python), Full Stack Engineers, SDETs / QA Automation Engineers, Engineering Managers |
+| Hiring Signals | Series A/B/C funding, New CTO or VP Engineering hire, Headcount growth 20%+, Product launch or market expansion, 5+ open engineering roles |
+
+### ICP Data Flow
+
+- The frontend (`public/js/icp.js`) sends raw form values via PUT to `/api/icp`
+- The backend (`routes/icp.js`) stores them as-is in a PostgreSQL `icp_settings` table (TEXT columns, no validation)
+- The `hiring_signals` field is stored as free text — no parsing, no array splitting
+
+---
+
+## 7. KNOWN BUGS AND ISSUES (AS OF MARCH 17, 2026)
+
+### CRITICAL — Must fix before first test run:
+
+**Bug 1: `hiring_signals` ICP field is a dead field**
+- The field saves to the database correctly but is NEVER used by the pipeline
+- `searchCompaniesByICP()` in `services/claude.js` does NOT interpolate `icp.hiring_signals` into its prompt
+- `researchCompany()` in `services/claude.js` does NOT receive or use the ICP hiring signals
+- **Fix required:** Wire `icp.hiring_signals` into both the `searchCompaniesByICP` prompt AND the `researchCompany` prompt
+
+**Bug 2: `researchCompany` prompt doesn't know Matthew's role types**
+- The prompt asks Claude to research generic "hiring and growth signals"
+- It doesn't tell Claude that Matthew specifically cares about TypeScript/React/Scala/iOS/etc. engineering roles
+- Signal Strength scoring will be generic rather than relevant to Matthew's placements
+- **Fix required:** Pass `icp.role_types` into the `researchCompany` prompt so Claude weights signals relevant to engineering hiring
+
+**Bug 3: JSON parsing uses non-greedy regex that breaks on nested objects**
+- `textBlock.text.match(/\{[\s\S]*?\}/)` matches the first `}` it encounters
+- If Claude returns JSON with nested objects (e.g., `{"details": {"funding": "Series B"}}`), this will truncate at the first `}`
+- Results in silent data loss — the pipeline won't crash but will return incomplete/malformed data
+- **Fix required:** Replace with greedy match `(/\{[\s\S]*\}/)` or use a proper JSON extraction function
+
+### MEDIUM — Should fix but won't block testing:
+
+**Issue 4: ATS slug guessing is naive**
+- `checkGreenhouse` and `checkLever` slugify company names by removing all non-alphanumeric characters
+- Many companies use different board slugs (e.g., "Datadog" might use "datadog-inc", "HashiCorp" might use "hashicorp")
+- This means the direct API calls will produce false negatives fairly often
+- The Claude fallback search should catch most of these, but it's slower and uses API credits
+- **Potential fix:** Could maintain a slug override map, or try multiple slug variations, or query a search engine for the actual board URL
+
+### LOW — Deferred:
+
+**Issue 5: Bullhorn integration is inert**
+- Client ID is configured in Railway environment variables
+- Client Secret has NOT been received yet — Matthew submitted a support ticket to Bullhorn
+- The `isConfigured()` function correctly checks for both `CLIENT_ID` and `CLIENT_SECRET`, so the pipeline gracefully skips Bullhorn when the secret is missing
+- **No code changes needed** — just add `BULLHORN_CLIENT_SECRET` to Railway env vars when it arrives
+
+---
+
+## 8. INFRASTRUCTURE & ENVIRONMENT
+
+### Railway Configuration
+
+- **Plan:** Hobby (~$5/month)
+- **Services:** Web service + PostgreSQL database
+- **Auto-deploy:** Yes — pushes to `master` branch on GitHub trigger automatic deployment
+- **Deployment config:** `railway.json` in repo root
+
+### Environment Variables (set in Railway)
+
+- `DATABASE_URL` — PostgreSQL connection string (auto-set by Railway)
+- `ANTHROPIC_API_KEY` — Claude API key
+- `BULLHORN_CLIENT_ID` — Configured
+- `BULLHORN_CLIENT_SECRET` — NOT YET CONFIGURED (waiting on Bullhorn support)
+- `BULLHORN_USERNAME` — Matthew's Bullhorn username
+- `BULLHORN_PASSWORD` — Matthew's Bullhorn password
+
+### Database Tables
+
+- `icp_settings` — Stores ICP configuration (one row, updated in place)
+- `pipeline_runs` — Tracks each pipeline execution (id, name, status, total_companies, processed_companies, completed_at)
+- `companies` — Stores per-company results (run_id, name, source, ats_detected, roles_found, hiring_signals, keywords, signal_strength, in_bullhorn, bullhorn_status, last_activity, raw_research)
+
+### Pages
+
+- `/` — Main pipeline page (input sources, run button, results table)
+- `/icp` — ICP settings page
+
+---
+
+## 9. CURRENT STATUS & WHAT'S HAPPENING RIGHT NOW
+
+### Status: Pre-first-test-run
+
+The app is deployed and live. The ICP settings page was recently fixed (had a rendering bug from a corrupted HTML duplicate — fixed in commit `6c541e8`). The pipeline has **never been run end-to-end with real data**.
+
+### What was being worked on when this handover was created:
+
+We were about to fix Bugs 1-3 (listed in Section 7) and then run the first test pipeline with a small batch of real companies. The plan was:
+
+1. **Fix Bug 1:** Wire `hiring_signals` into `searchCompaniesByICP` prompt — add a line like: `- Prioritize companies showing these hiring signals: ${icp.hiring_signals}`
+2. **Fix Bug 2:** Wire `role_types` into `researchCompany` prompt — add context so Claude knows to weight engineering-specific signals and role types relevant to Matthew's placements
+3. **Fix Bug 3:** Fix JSON regex — change `\{[\s\S]*?\}` to a greedy match or proper extraction
+4. **Test:** Run pipeline with 3-5 known companies where we can verify the output (e.g., companies where Matthew already knows their ATS or recent funding)
+5. **Verify:** Check each output column for accuracy, compare ATS detection against known ATS, validate signal strength makes sense
+
+### What has NOT been done yet:
+
+- No pipeline run has ever been executed
+- The hiring signals and role types fixes have not been coded or deployed yet
+- The JSON regex fix has not been coded or deployed yet
+- No test companies have been selected yet
+- The app has not been stress-tested with larger batches
+- No rate limiting or cost controls have been implemented for the Anthropic API calls
+- ZoomInfo CSV import has not been tested with a real ZoomInfo export
+- CSV export of results has not been tested
+
+---
+
+## 10. DEVELOPMENT WORKFLOW
+
+### How code gets changed:
+
+1. Matthew does NOT have Git installed locally (Windows machine, PowerShell)
+2. The repo was built using Claude Cowork and edited via GitHub's web interface or Claude in Chrome
+3. Changes pushed to `master` auto-deploy to Railway
+4. To make changes, you can either:
+   - Edit files via the GitHub web interface
+   - Use Claude in Chrome to navigate to the raw file URLs on GitHub, read the code, and use the GitHub web editor to make changes
+   - Install Git on Matthew's machine and clone the repo locally (Git was not installed as of March 17, 2026)
+
+### How to read the codebase:
+
+All files are accessible at `https://raw.githubusercontent.com/MattPsudoCoder/prospect-research-tool/master/<filepath>`
+
+Key files to read for any change:
+- `services/claude.js` — All Claude API prompts
+- `services/research.js` — Per-company orchestration
+- `services/ats.js` — ATS detection chain
+- `routes/pipeline.js` — Pipeline orchestration and API endpoints
+- `services/dedup.js` — Deduplication logic
+- `services/bullhorn.js` — Bullhorn CRM (inert until secret arrives)
+
+---
+
+## 11. IMPORTANT BEHAVIOURAL RULES
+
+Matthew has explicitly requested the following working style from AI assistants on this project:
+
+1. **Verify before recommending.** Do not make suggestions without first reading the relevant code to confirm your understanding is correct.
+2. **Describe before diagnosing.** When investigating an issue, show what you see in the code first, then offer your interpretation.
+3. **Flag confidence levels.** State whether your confidence is High, Medium, or Low for any recommendation, and list any assumptions you're making.
+4. **Do not guess.** If you're unsure about how something works, read the code or ask Matthew — don't speculate and present it as fact.
+5. **Don't waste Matthew's time.** Previous AI interactions on this project led to wasted effort from unverified recommendations. Be precise and honest about what you know vs. don't know.
+
+---
+
+## 12. API COST CONSIDERATIONS
+
+Each company processed through the pipeline makes up to 3 Claude API calls with web search:
+
+1. `researchCompany` — claude-sonnet-4-6, max 2048 tokens, up to 8 web searches
+2. `searchATSFallback` — claude-sonnet-4-6, max 1024 tokens, up to 6 web searches (only if Greenhouse and Lever checks fail)
+3. If ICP search is enabled: `searchCompaniesByICP` — claude-sonnet-4-6, max 2048 tokens, up to 10 web searches (once per run, not per company)
+
+For a batch of 20 companies, this could mean 40-60 Claude API calls with web search. No cost controls or rate limiting are currently implemented beyond the sequential processing in `processCompanies()`.
+
+---
+
+## 13. CONNECTED TOOLS & INTEGRATIONS
+
+Matthew has the following tools connected in his Claude environment:
+
+- **Desktop Commander** — Can read/write files on Matthew's Windows machine, run shell commands
+- **Claude in Chrome** — Can browse the web, interact with the live app, read GitHub files
+- **Slack** — Connected (can search/send messages)
+- **ZoomInfo** — Connected via MCP (can search companies/contacts directly)
+- **Calendly** — Connected
+- **Indeed** — Connected
+
+The ZoomInfo MCP connection is notable — it means the ICP search could potentially be enhanced to use ZoomInfo's database directly rather than relying solely on Claude web search. This has not been explored yet.
+
+---
+
+## 14. FUTURE CONSIDERATIONS (NOT STARTED)
+
+These are features or improvements that have been discussed or are logical next steps, but NO work has been done on them:
+
+- **Rate limiting / cost controls** for Anthropic API usage
+- **Caching** — avoid re-researching companies that were already processed in a previous run
+- **ZoomInfo MCP integration** — use ZoomInfo's connected tool for ICP search instead of/in addition to Claude web search
+- **Improved ATS slug matching** — try multiple slug variations or use web search to find the actual board URL
+- **Batch size controls** — allow users to set maximum companies per run
+- **Historical run comparison** — compare results across multiple pipeline runs
+- **Email/notification** when a pipeline run completes
+- **Authentication** — the app currently has no login or access control
+
+

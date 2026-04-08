@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS tracked_contacts (
     updated_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+-- Migration: add tech_stack column
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS tech_stack TEXT DEFAULT '';
+
+-- Migration: add dismissed column for soft-delete on prospects
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS dismissed BOOLEAN DEFAULT FALSE;
+
 -- v1.1 scoring columns on companies
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS score_overall NUMERIC(3,1) DEFAULT NULL;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS score_details JSONB DEFAULT '{}';

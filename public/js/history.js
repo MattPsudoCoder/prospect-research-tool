@@ -83,8 +83,8 @@ async function viewRun(runId, name) {
             <p>${esc(c.hiring_signals) || '<em>None detected</em>'}</p>
           </div>
           <div class="result-field">
-            <label>Keywords</label>
-            <p>${esc(c.keywords) || '<em>None</em>'}</p>
+            <label>Tech Stack</label>
+            <p>${esc(c.tech_stack) || '<em>Unknown</em>'}</p>
           </div>
         </div>
       `;

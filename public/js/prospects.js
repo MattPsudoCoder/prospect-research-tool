@@ -98,8 +98,8 @@ function renderProspects() {
           <p>${esc(c.hiring_signals) || '<em>None detected</em>'}</p>
         </div>
         <div class="result-field">
-          <label>Keywords</label>
-          <p>${esc(c.keywords) || '<em>None</em>'}</p>
+          <label>Tech Stack</label>
+          <p>${esc(c.tech_stack) || '<em>Unknown</em>'}</p>
         </div>
       </div>
     `;
@@ -134,12 +134,11 @@ async function trackProspect(companyId) {
         signal_strength: company.signal_strength,
       }),
     });
-    if (res.status === 409) {
-      if (btn) { btn.textContent = 'Tracked'; btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
-      return;
-    }
-    if (!res.ok) throw new Error('Failed');
-    if (btn) { btn.textContent = 'Tracked'; btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
+    if (!res.ok && res.status !== 409) throw new Error('Failed');
+    // Dismiss from prospects after tracking
+    await fetch(`/api/history/company/${companyId}`, { method: 'DELETE' });
+    allProspects = allProspects.filter((c) => c.id !== companyId);
+    renderProspects();
   } catch (err) {
     alert('Failed to track: ' + err.message);
     if (btn) { btn.disabled = false; btn.textContent = 'Track'; }
@@ -147,13 +146,12 @@ async function trackProspect(companyId) {
 }
 
 async function deleteProspect(companyId) {
-  if (!confirm('Remove this company from prospects?')) return;
   try {
     await fetch(`/api/history/company/${companyId}`, { method: 'DELETE' });
     allProspects = allProspects.filter((c) => c.id !== companyId);
     renderProspects();
   } catch (err) {
-    alert('Failed to delete: ' + err.message);
+    alert('Failed to dismiss: ' + err.message);
   }
 }
 
@@ -191,13 +189,14 @@ exportBtn.addEventListener('click', () => {
     return;
   }
 
-  const headers = ['Company Name', 'Source', 'ATS Detected', 'Roles Found', 'Hiring Signals', 'Keywords', 'Signal Strength'];
+  const headers = ['Company Name', 'Source', 'ATS Detected', 'Roles Found', 'Hiring Signals', 'Tech Stack', 'Keywords', 'Signal Strength'];
   const rows = allProspects.map((c) => [
     csvEsc(c.name),
     csvEsc(c.source),
     csvEsc(c.ats_detected),
     csvEsc(flattenRolesCSV(c.roles_found)),
     csvEsc(c.hiring_signals),
+    csvEsc(c.tech_stack),
     csvEsc(c.keywords),
     csvEsc(c.signal_strength),
   ]);

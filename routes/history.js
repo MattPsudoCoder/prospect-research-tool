@@ -18,7 +18,8 @@ router.get('/', async (req, res) => {
 router.get('/:runId/results', async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT * FROM companies WHERE run_id = $1 ORDER BY signal_strength DESC, name ASC',
+      `SELECT * FROM companies WHERE run_id = $1
+     ORDER BY CASE signal_strength WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END, name ASC`,
       [req.params.runId]
     );
     res.json(result.rows);
@@ -33,7 +34,8 @@ router.get('/prospects', async (req, res) => {
     const result = await db.query(`
       SELECT DISTINCT ON (LOWER(name)) *
       FROM companies
-      WHERE hiring_signals NOT LIKE 'Error:%'
+      WHERE dismissed IS NOT TRUE
+        AND hiring_signals NOT LIKE 'Error:%'
         AND hiring_signals NOT LIKE '%rate_limit_error%'
         AND hiring_signals NOT LIKE '%"type":"error"%'
         AND (hiring_signals != '' OR ats_detected != '' OR roles_found != '')
@@ -62,11 +64,11 @@ router.delete('/cleanup/errors', async (req, res) => {
   }
 });
 
-// DELETE a single company by ID (from prospects list)
+// Soft-delete a single company by ID (hide from prospects list, keep in history)
 router.delete('/company/:companyId', async (req, res) => {
   try {
-    const result = await db.query('DELETE FROM companies WHERE id = $1', [req.params.companyId]);
-    res.json({ success: true, deleted: result.rowCount });
+    const result = await db.query('UPDATE companies SET dismissed = TRUE WHERE id = $1', [req.params.companyId]);
+    res.json({ success: true, dismissed: result.rowCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
