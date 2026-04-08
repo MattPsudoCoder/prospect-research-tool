@@ -529,7 +529,10 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   font-size: 13px;
   font-family: inherit;
   background: #fff;
-  min-width: 200px;
+  width: auto;
+  min-width: 180px;
+  max-width: 220px;
+  flex-shrink: 0;
 }
 .step-tip {
   font-size: 12px;
@@ -537,6 +540,8 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 .step-channel {
   font-weight: 600;
