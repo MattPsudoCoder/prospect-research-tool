@@ -667,14 +667,14 @@ document.addEventListener('click', (e) => {
   const btn = e.target.closest('.btn-open-window');
   if (!btn) return;
   e.preventDefault();
+  e.stopPropagation();
   const url = btn.dataset.url;
   if (!url) return;
   if (url.startsWith('mailto:')) {
-    // mailto links need to go through location to trigger email client
     window.location.href = url;
   } else {
-    // Open in a separate browser window, not a tab
-    window.open(url, '_blank', 'width=1280,height=900,menubar=yes,toolbar=yes,location=yes,status=yes,scrollbars=yes');
+    // popup=yes forces Chrome to open a new window, not a tab
+    window.open(url, 'prospect_outreach', 'popup=yes,width=1280,height=900,left=100,top=100');
   }
 });
 
