@@ -38,7 +38,7 @@ Set ICP criteria → Run pipeline → Claude web search + ATS detection + Bullho
 - This is Matthew's judgment call — the app surfaces data, he decides
 
 ### Phase 3: ENRICH CONTACTS (Automated)
-**Status: Partially built — ZoomInfo integration needed in app**
+**Status: Built — ZoomInfo MCP enrichment via Claude Code**
 
 For each tracked company:
 1. ZoomInfo `search_contacts` — filter by company, department (Engineering & Technical), management level (VP, Director, Manager)
@@ -50,7 +50,7 @@ For each tracked company:
 **Output:** Contact list with name, title, email, mobile, LinkedIn, company — ready for outreach.
 
 ### Phase 4: DAILY ACTION BOARD (Tracker)
-**Status: Skeleton built — needs one-click actions + message templates**
+**Status: Built — one-click actions, message templates, View Scripts panel**
 
 The Tracker becomes the main daily interface. For each contact, a 6-step outreach cadence:
 
@@ -76,7 +76,7 @@ The Tracker becomes the main daily interface. For each contact, a 6-step outreac
 - Spec-in emails need realistic, hypothetical candidate profiles tailored to the company
 
 ### Phase 5: END-OF-DAY SYNC
-**Status: Foundation built — needs batch reconciliation button**
+**Status: Built — Sync Day to BH button, activity log, batch push**
 
 - One button: "Sync to Bullhorn"
 - Pushes all day's activity in bulk:
@@ -100,12 +100,12 @@ The Tracker becomes the main daily interface. For each contact, a 6-step outreac
 - [x] Bullhorn company check during pipeline (vacancies, placements, notes, negative signals)
 
 ### High Priority (Next)
-- [ ] Bullhorn 60-day gate — auto-discard companies with recent meaningful activity
-- [ ] ZoomInfo contact enrichment integrated into app (search + double-pass enrich)
-- [ ] One-click outreach actions per step (open LinkedIn/email/phone with context)
-- [ ] Message template generation per step (Claude-powered, tone-aware)
-- [ ] End-of-day batch sync button
-- [ ] Activity log (what you did today, timestamped)
+- [x] Bullhorn 60-day gate — auto-discard companies with recent meaningful activity
+- [x] ZoomInfo contact enrichment integrated into app (search + double-pass enrich)
+- [x] One-click outreach actions per step (open LinkedIn/email/phone with context)
+- [x] Message template generation per step (Claude-powered, tone-aware)
+- [x] End-of-day batch sync button
+- [x] Activity log (what you did today, timestamped)
 
 ### Medium Priority
 - [ ] Morning priority dashboard (who's next, what's due)
@@ -127,7 +127,7 @@ The Tracker becomes the main daily interface. For each contact, a 6-step outreac
 |------|---------|--------|
 | Claude API | Web research, hiring signals, message generation | Active |
 | Bullhorn REST API | CRM — contacts, notes, company check | Active (manual token) |
-| ZoomInfo MCP | Contact search + enrichment | Available — not yet in app |
+| ZoomInfo MCP | Contact search + enrichment | Active (via Claude Code) |
 | Indeed MCP | Job listings search | Available — not yet in app |
 | Greenhouse/Lever APIs | ATS detection | Active |
 | Neon PostgreSQL | App database | Active |

@@ -195,6 +195,7 @@ async function loadContacts(companyId) {
           ${step.id > 0 ? `<span class="step-tip"><span class="step-channel">${esc(step.channel)}</span> ${esc(step.tip)}</span>` : ''}
         </div>
         <div class="contact-actions">
+          ${stepActionButton(ct, step)}
           ${hasTemplates ? `<button class="btn-bh btn-bh-note btn-sm btn-show-all-templates" data-contact-id="${ct.id}">View Scripts</button>` : ''}
           ${!hasTemplates && claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-templates" data-contact-id="${ct.id}" data-company-id="${companyId}" style="background:#9b59b6">Generate Scripts</button>` : ''}
           ${bhConnected ? bhButton(ct) : ''}
@@ -302,6 +303,10 @@ function showAllTemplates(contactId, contacts) {
   const viewBtn = row.querySelector('.btn-show-all-templates');
   if (viewBtn) viewBtn.style.display = 'none';
 
+  // Find which STEPS entry matches the current outreach_step
+  const currentStep = STEPS[ct.outreach_step] || STEPS[0];
+  const currentKey = currentStep.actionKey;
+
   const div = document.createElement('div');
   div.className = 'template-display';
   div.style.cssText = 'background:#f8f9fa;padding:16px;margin-top:8px;border-radius:6px;border:1px solid #e2e4ea;font-size:13px;position:relative;';
@@ -313,14 +318,22 @@ function showAllTemplates(contactId, contacts) {
     const content = templates[ts.key];
     if (!content) continue;
 
-    html += `<div style="margin-top:14px;padding:12px;background:#fff;border:1px solid #e2e4ea;border-radius:6px;">`;
+    const isCurrent = ts.key === currentKey;
+    const borderColor = isCurrent ? '#4f6ef7' : '#e2e4ea';
+    const bgColor = isCurrent ? '#f0f3ff' : '#fff';
+    const badge = isCurrent ? '<span style="background:#4f6ef7;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;margin-left:8px;">CURRENT</span>' : '';
+
+    html += `<div style="margin-top:14px;padding:12px;background:${bgColor};border:2px solid ${borderColor};border-radius:6px;">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">`;
-    html += `<strong>${esc(ts.label)}</strong>`;
+    html += `<strong>${esc(ts.label)}${badge}</strong>`;
     html += `<span style="font-size:11px;color:#6b7085;font-weight:600;">${esc(ts.channel)}</span>`;
     html += `</div>`;
     html += `<hr style="margin:0 0 8px;border-color:#e2e4ea;">`;
     html += `<div class="template-content" style="white-space:pre-wrap;line-height:1.6;">${formatTemplateContent(content, ts.channel)}</div>`;
-    html += `<button class="btn btn-primary btn-sm copy-btn" style="margin-top:8px;" data-content="${escAttr(content)}">Copy</button>`;
+    html += `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">`;
+    html += `<button class="btn btn-primary btn-sm copy-btn" data-content="${escAttr(content)}">Copy</button>`;
+    html += templateActionButton(ct, ts, content);
+    html += `</div>`;
     html += `</div>`;
   }
 
@@ -339,6 +352,45 @@ function showAllTemplates(contactId, contacts) {
       setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
     });
   });
+
+  div.querySelectorAll('.btn-mark-done').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const stepIdx = parseInt(btn.dataset.stepIdx);
+      const companyId = ct.tracked_company_id;
+      const nextStep = Math.min(stepIdx + 1, STEPS.length - 1);
+      btn.disabled = true; btn.textContent = 'Logging...';
+      await fetch(`/api/tracker/contacts/${ct.id}/advance-step`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step: nextStep, action_taken: STEPS[stepIdx].label, details: `Completed ${STEPS[stepIdx].channel} step` }),
+      });
+      loadContacts(companyId);
+    });
+  });
+}
+
+function templateActionButton(ct, ts, content) {
+  let btns = '';
+  // LinkedIn actions
+  if (ts.channel === 'LinkedIn' && ct.linkedin_url) {
+    btns += `<a href="${esc(ct.linkedin_url)}" target="_blank" class="btn btn-sm" style="background:#0077b5;color:#fff;text-decoration:none;">Open LinkedIn</a>`;
+  }
+  // Email actions — compose with subject+body
+  if (ts.channel === 'Email' && ct.email) {
+    const subjectMatch = content.match(/^(?:Subject:\s*)(.*?)(?:\n)/i);
+    const subject = subjectMatch ? encodeURIComponent(subjectMatch[1].trim()) : '';
+    const body = subjectMatch ? encodeURIComponent(content.slice(subjectMatch[0].length).trim()) : encodeURIComponent(content);
+    btns += `<a href="mailto:${esc(ct.email)}?subject=${subject}&body=${body}" class="btn btn-sm" style="background:#e74c3c;color:#fff;text-decoration:none;">Compose Email</a>`;
+  }
+  // Phone actions
+  if ((ts.channel === 'Phone' || ts.channel === 'SMS') && ct.phone) {
+    btns += `<a href="tel:${esc(ct.phone)}" class="btn btn-sm" style="background:#27ae60;color:#fff;text-decoration:none;">Call ${esc(ct.phone)}</a>`;
+  }
+  // Mark Done — find the matching STEPS index for this template key
+  const stepIdx = STEPS.findIndex(s => s.actionKey === ts.key);
+  if (stepIdx > 0) {
+    btns += `<button class="btn btn-sm btn-mark-done" data-step-idx="${stepIdx}" style="background:#2c2f3e;color:#fff;">Done</button>`;
+  }
+  return btns;
 }
 
 function formatTemplateContent(content, channel) {
@@ -358,6 +410,27 @@ function formatTemplateContent(content, channel) {
 function escAttr(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ── One-click outreach actions ──────────────────────────────── */
+
+function stepActionButton(ct, step) {
+  if (step.id === 0) return '';
+  const channel = step.channel;
+  if (channel === 'LinkedIn' && ct.linkedin_url) {
+    return `<a href="${esc(ct.linkedin_url)}" target="_blank" class="btn btn-sm btn-step-action" style="background:#0077b5;color:#fff;">Open LinkedIn</a>`;
+  }
+  if (channel === 'Email' && ct.email) {
+    const tmpl = ct.outreach_templates?.[step.actionKey] || '';
+    const subjectMatch = tmpl.match(/^(?:Subject:\s*)(.*?)(?:\n)/i);
+    const subject = subjectMatch ? encodeURIComponent(subjectMatch[1].trim()) : '';
+    const body = subjectMatch ? encodeURIComponent(tmpl.slice(subjectMatch[0].length).trim()) : encodeURIComponent(tmpl);
+    return `<a href="mailto:${esc(ct.email)}?subject=${subject}&body=${body}" class="btn btn-sm btn-step-action" style="background:#e74c3c;color:#fff;">Compose Email</a>`;
+  }
+  if ((channel === 'Phone' || channel === 'Phone/SMS') && ct.phone) {
+    return `<a href="tel:${esc(ct.phone)}" class="btn btn-sm btn-step-action" style="background:#27ae60;color:#fff;">Call ${esc(ct.phone)}</a>`;
+  }
+  return '';
 }
 
 /* ── Bullhorn buttons ────────────────────────────────────────── */
