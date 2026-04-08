@@ -531,6 +531,37 @@ tr:hover td { background: rgba(79,110,247,0.03); }
 .channel-email { background: #6b7085; }
 .channel-phone { background: #27ae60; }
 
+/* Contact details — visible text for email/phone/linkedin */
+.contact-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  align-items: center;
+}
+.contact-detail-link {
+  font-size: 12px;
+  color: var(--primary);
+  text-decoration: none;
+}
+.contact-detail-link:hover { text-decoration: underline; }
+.contact-detail-link.channel-linkedin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: #0077b5;
+}
+.contact-detail-text {
+  font-size: 12px;
+  color: var(--text);
+}
+
 /* Step select + tip */
 .contact-step {
   flex: 1;

@@ -182,10 +182,10 @@ async function loadContacts(companyId) {
             <strong>${esc(ct.name)}</strong>
             ${ct.title ? `<span class="contact-title">${esc(ct.title)}</span>` : ''}
           </div>
-          <div class="contact-channels">
-            ${ct.linkedin_url ? `<a href="${esc(ct.linkedin_url)}" target="_blank" class="channel-link channel-linkedin">in</a>` : ''}
-            ${ct.email ? `<a href="mailto:${esc(ct.email)}" class="channel-link channel-email" title="${esc(ct.email)}">@</a>` : ''}
-            ${ct.phone ? `<span class="channel-link channel-phone" title="${esc(ct.phone)}">Ph</span>` : ''}
+          <div class="contact-details">
+            ${ct.linkedin_url ? `<a href="${esc(ct.linkedin_url)}" target="_blank" class="contact-detail-link channel-linkedin">in</a>` : ''}
+            ${ct.email ? `<a href="mailto:${esc(ct.email)}" class="contact-detail-link">${esc(ct.email)}</a>` : ''}
+            ${ct.phone ? `<span class="contact-detail-text">${esc(ct.phone)}</span>` : ''}
           </div>
         </div>
         <div class="contact-step">
@@ -195,7 +195,7 @@ async function loadContacts(companyId) {
           ${step.id > 0 ? `<span class="step-tip"><span class="step-channel">${esc(step.channel)}</span> ${esc(step.tip)}</span>` : ''}
         </div>
         <div class="contact-actions">
-          ${step.id > 0 && hasTemplates ? `<button class="btn-bh btn-bh-note btn-sm btn-show-template" data-contact-id="${ct.id}" data-step="${ct.outreach_step}">View Script</button>` : ''}
+          ${hasTemplates ? `<button class="btn-bh btn-bh-note btn-sm btn-show-all-templates" data-contact-id="${ct.id}">View Scripts</button>` : ''}
           ${!hasTemplates && claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-templates" data-contact-id="${ct.id}" data-company-id="${companyId}" style="background:#9b59b6">Generate Scripts</button>` : ''}
           ${bhConnected ? bhButton(ct) : ''}
           <button class="btn btn-secondary btn-sm btn-edit-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">Edit</button>
@@ -251,9 +251,9 @@ async function loadContacts(companyId) {
       btn.addEventListener('click', () => generateTemplates(parseInt(btn.dataset.contactId), parseInt(btn.dataset.companyId)));
     });
 
-    // View script/template
-    listEl.querySelectorAll('.btn-show-template').forEach(btn => {
-      btn.addEventListener('click', () => showTemplate(parseInt(btn.dataset.contactId), parseInt(btn.dataset.step), contacts));
+    // View all scripts
+    listEl.querySelectorAll('.btn-show-all-templates').forEach(btn => {
+      btn.addEventListener('click', () => showAllTemplates(parseInt(btn.dataset.contactId), contacts));
     });
   } catch (err) {
     listEl.innerHTML = '<p class="empty-contacts">Failed to load contacts.</p>';
@@ -274,29 +274,90 @@ async function generateTemplates(contactId, companyId) {
   }
 }
 
-function showTemplate(contactId, stepId, contacts) {
+// Template key display order — maps template keys to friendly labels
+const TEMPLATE_STEPS = [
+  { key: 'step1_linkedin_connect', label: '1. LinkedIn connection request', channel: 'LinkedIn' },
+  { key: 'step2a_intro_accepted', label: '2a. Intro (accepted)', channel: 'LinkedIn' },
+  { key: 'step2b_intro_not_accepted', label: '2b. Intro (not accepted)', channel: 'LinkedIn' },
+  { key: 'step3_email', label: '3. Spec-in email', channel: 'Email' },
+  { key: 'step4_call_script', label: '4. Cold call script', channel: 'Phone' },
+  { key: 'step4_voicemail', label: '4. Voicemail', channel: 'Phone' },
+  { key: 'step4_followup_text', label: '4. Follow-up text', channel: 'SMS' },
+  { key: 'step5_email', label: '5. Value-add email', channel: 'Email' },
+  { key: 'step6_linkedin', label: '6. LinkedIn follow-up', channel: 'LinkedIn' },
+];
+
+function showAllTemplates(contactId, contacts) {
   const ct = contacts.find(c => c.id === contactId);
   if (!ct || !ct.outreach_templates) return;
-
-  const step = STEPS[stepId];
   const templates = ct.outreach_templates;
-  const key = step.actionKey;
-  const content = templates[key] || 'No template for this step.';
 
   const row = document.getElementById(`contact-${contactId}`);
-  if (!row || row.querySelector('.template-display')) return;
+  if (!row) return;
+
+  // Toggle
+  const existing = row.querySelector('.template-display');
+  if (existing) { existing.remove(); return; }
+
+  const viewBtn = row.querySelector('.btn-show-all-templates');
+  if (viewBtn) viewBtn.style.display = 'none';
 
   const div = document.createElement('div');
   div.className = 'template-display';
-  div.style.cssText = 'background:#f8f9fa;padding:12px;margin-top:8px;border-radius:6px;border:1px solid #e2e4ea;white-space:pre-wrap;font-size:13px;position:relative;';
-  div.innerHTML = `
-    <strong>${esc(step.label)}</strong>
-    <button class="btn btn-secondary btn-sm" style="position:absolute;top:8px;right:8px;" onclick="this.parentElement.remove()">Close</button>
-    <hr style="margin:8px 0;border-color:#e2e4ea;">
-    <div>${esc(content)}</div>
-    <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent);this.textContent='Copied!';">Copy</button>
-  `;
+  div.style.cssText = 'background:#f8f9fa;padding:16px;margin-top:8px;border-radius:6px;border:1px solid #e2e4ea;font-size:13px;position:relative;';
+
+  let html = `<button class="btn btn-secondary btn-sm template-close" style="position:absolute;top:8px;right:8px;">Close</button>`;
+  html += `<strong style="font-size:15px;">${esc(ct.name)} — Outreach Scripts</strong>`;
+
+  for (const ts of TEMPLATE_STEPS) {
+    const content = templates[ts.key];
+    if (!content) continue;
+
+    html += `<div style="margin-top:14px;padding:12px;background:#fff;border:1px solid #e2e4ea;border-radius:6px;">`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">`;
+    html += `<strong>${esc(ts.label)}</strong>`;
+    html += `<span style="font-size:11px;color:#6b7085;font-weight:600;">${esc(ts.channel)}</span>`;
+    html += `</div>`;
+    html += `<hr style="margin:0 0 8px;border-color:#e2e4ea;">`;
+    html += `<div class="template-content" style="white-space:pre-wrap;line-height:1.6;">${formatTemplateContent(content, ts.channel)}</div>`;
+    html += `<button class="btn btn-primary btn-sm copy-btn" style="margin-top:8px;" data-content="${escAttr(content)}">Copy</button>`;
+    html += `</div>`;
+  }
+
+  div.innerHTML = html;
   row.appendChild(div);
+
+  div.querySelector('.template-close').addEventListener('click', () => {
+    div.remove();
+    if (viewBtn) viewBtn.style.display = '';
+  });
+
+  div.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.content);
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    });
+  });
+}
+
+function formatTemplateContent(content, channel) {
+  if (!content) return '';
+  // For emails, try to separate subject line from body
+  if (channel === 'Email') {
+    const subjectMatch = content.match(/^(?:Subject:\s*)(.*?)(?:\n\n|\n)/i);
+    if (subjectMatch) {
+      const subject = subjectMatch[1].trim();
+      const body = content.slice(subjectMatch[0].length).trim();
+      return `<div style="font-weight:600;color:#2c2f3e;margin-bottom:8px;">Subject: ${esc(subject)}</div><div>${esc(body)}</div>`;
+    }
+  }
+  return esc(content);
+}
+
+function escAttr(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /* ── Bullhorn buttons ────────────────────────────────────────── */
