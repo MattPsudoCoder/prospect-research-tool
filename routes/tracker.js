@@ -369,6 +369,18 @@ router.get('/activity/unsynced', async (req, res) => {
   }
 });
 
+// DELETE — remove activity log entries (cleanup noise/test data)
+router.delete('/activity/batch', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) return res.json({ deleted: 0 });
+    const result = await db.query('DELETE FROM activity_log WHERE id = ANY($1) RETURNING id', [ids]);
+    res.json({ deleted: result.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST — mark activities as synced
 router.post('/activity/mark-synced', async (req, res) => {
   try {
