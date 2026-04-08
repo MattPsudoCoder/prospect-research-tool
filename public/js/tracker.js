@@ -392,12 +392,13 @@ function templateActionButton(ct, ts, rawContent) {
   let btns = '';
   // LinkedIn actions
   if (ts.channel === 'LinkedIn' && ct.linkedin_url) {
-    btns += `<a href="${esc(ct.linkedin_url)}" target="_blank" class="btn btn-sm" style="background:#0077b5;color:#fff;text-decoration:none;">Open LinkedIn</a>`;
+    btns += `<button class="btn btn-sm btn-open-window" data-url="${escAttr(ct.linkedin_url)}" style="background:#0077b5;color:#fff;">Open LinkedIn</button>`;
   }
   // Email actions — compose with subject+body
   if (ts.channel === 'Email' && ct.email) {
     const { subject, body } = extractEmailParts(rawContent);
-    btns += `<a href="mailto:${esc(ct.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}" class="btn btn-sm" style="background:#e74c3c;color:#fff;text-decoration:none;">Compose Email</a>`;
+    const mailto = `mailto:${ct.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    btns += `<button class="btn btn-sm btn-open-window" data-url="${escAttr(mailto)}" style="background:#e74c3c;color:#fff;">Compose Email</button>`;
   }
   // Phone actions
   if ((ts.channel === 'Phone' || ts.channel === 'SMS') && ct.phone) {
@@ -457,12 +458,13 @@ function stepActionButton(ct, step) {
   if (step.id === 0) return '';
   const channel = step.channel;
   if (channel === 'LinkedIn' && ct.linkedin_url) {
-    return `<a href="${esc(ct.linkedin_url)}" target="_blank" class="btn btn-sm btn-step-action" style="background:#0077b5;color:#fff;">Open LinkedIn</a>`;
+    return `<button class="btn btn-sm btn-step-action btn-open-window" data-url="${escAttr(ct.linkedin_url)}" style="background:#0077b5;color:#fff;">Open LinkedIn</button>`;
   }
   if (channel === 'Email' && ct.email) {
     const raw = ct.outreach_templates?.[step.actionKey] || '';
     const { subject, body } = extractEmailParts(raw);
-    return `<a href="mailto:${esc(ct.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}" class="btn btn-sm btn-step-action" style="background:#e74c3c;color:#fff;">Compose Email</a>`;
+    const mailto = `mailto:${ct.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    return `<button class="btn btn-sm btn-step-action btn-open-window" data-url="${escAttr(mailto)}" style="background:#e74c3c;color:#fff;">Compose Email</button>`;
   }
   if ((channel === 'Phone' || channel === 'Phone/SMS') && ct.phone) {
     return `<a href="tel:${esc(ct.phone)}" class="btn btn-sm btn-step-action" style="background:#27ae60;color:#fff;">Call ${esc(ct.phone)}</a>`;
@@ -648,6 +650,22 @@ function truncate(str, max) {
   if (!str || str.length <= max) return str;
   return str.slice(0, max).replace(/,?\s*$/, '') + '…';
 }
+
+/* ── Open links in separate browser window ──────────────────── */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-open-window');
+  if (!btn) return;
+  e.preventDefault();
+  const url = btn.dataset.url;
+  if (!url) return;
+  if (url.startsWith('mailto:')) {
+    // mailto links need to go through location to trigger email client
+    window.location.href = url;
+  } else {
+    // Open in a separate browser window, not a tab
+    window.open(url, '_blank', 'width=1280,height=900,menubar=yes,toolbar=yes,location=yes,status=yes,scrollbars=yes');
+  }
+});
 
 /* ── Init ─────────────────────────────────────────────────────── */
 checkBhStatus();
