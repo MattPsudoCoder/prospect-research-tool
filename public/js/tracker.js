@@ -8,14 +8,14 @@ let claudeAvailable = false;
 fetch('/api/features').then(r => r.json()).then(f => { claudeAvailable = f.claude_api; }).catch(() => {});
 
 const STEPS = [
-  { id: 0, label: 'Not started', channel: '', tip: '', actionKey: '' },
-  { id: 1, label: '1. Connection request', channel: 'LinkedIn', tip: 'Warm the door — no pitch', actionKey: 'step1_linkedin_connect' },
-  { id: 2, label: '2a. Intro (accepted)', channel: 'LinkedIn', tip: 'Personalised opener + question', actionKey: 'step2a_intro_accepted' },
-  { id: 3, label: '2b. Intro (not accepted)', channel: 'LinkedIn', tip: 'Lead with relevance + CTA', actionKey: 'step2b_intro_not_accepted' },
-  { id: 4, label: '3. Spec-in email', channel: 'Email', tip: 'Put a specific profile in front of them', actionKey: 'step3_email' },
-  { id: 5, label: '4. Cold call', channel: 'Phone/SMS', tip: 'Break through the inbox', actionKey: 'step4_call_script' },
-  { id: 6, label: '5. Value-add email', channel: 'Email', tip: 'Give before you ask again', actionKey: 'step5_email' },
-  { id: 7, label: '6. LinkedIn follow-up', channel: 'LinkedIn', tip: 'Soft close + market insight', actionKey: 'step6_linkedin' },
+  { id: 0, label: 'Not started', channel: '', tip: '', actionKey: '', bhAction: '' },
+  { id: 1, label: '1. Connection request', channel: 'LinkedIn', tip: 'Warm the door — no pitch', actionKey: 'step1_linkedin_connect', bhAction: 'BD Message' },
+  { id: 2, label: '2a. Intro (accepted)', channel: 'LinkedIn', tip: 'Personalised opener + question', actionKey: 'step2a_intro_accepted', bhAction: 'BD Message' },
+  { id: 3, label: '2b. Intro (not accepted)', channel: 'LinkedIn', tip: 'Lead with relevance + CTA', actionKey: 'step2b_intro_not_accepted', bhAction: 'BD Message' },
+  { id: 4, label: '3. Spec-in email', channel: 'Email', tip: 'Put a specific profile in front of them', actionKey: 'step3_email', bhAction: 'Reverse Market' },
+  { id: 5, label: '4. Cold call', channel: 'Phone/SMS', tip: 'Break through the inbox', actionKey: 'step4_call_script', bhAction: 'Attempted BD Call' },
+  { id: 6, label: '5. Value-add email', channel: 'Email', tip: 'Give before you ask again', actionKey: 'step5_email', bhAction: 'Reverse Market' },
+  { id: 7, label: '6. LinkedIn follow-up', channel: 'LinkedIn', tip: 'Soft close + market insight', actionKey: 'step6_linkedin', bhAction: 'Reverse Market' },
 ];
 
 /* ── Bullhorn connection bar ─────────────────────────────────── */
@@ -210,7 +210,7 @@ async function loadContacts(companyId) {
       listEl.appendChild(row);
     });
 
-    // Step change → advance with activity log
+    // Step change → advance with activity log + BH action type
     listEl.querySelectorAll('.step-select').forEach(sel => {
       sel.addEventListener('change', async () => {
         const contactId = parseInt(sel.dataset.contactId);
@@ -218,7 +218,12 @@ async function loadContacts(companyId) {
         const stepInfo = STEPS[newStep];
         await fetch(`/api/tracker/contacts/${contactId}/advance-step`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ step: newStep, action_taken: stepInfo.label, details: `${stepInfo.channel}: ${stepInfo.tip}` }),
+          body: JSON.stringify({
+            step: newStep,
+            action_taken: stepInfo.bhAction || stepInfo.label,
+            details: `[${stepInfo.bhAction}] ${stepInfo.label} — ${stepInfo.channel}`,
+            bh_action: stepInfo.bhAction,
+          }),
         });
         loadContacts(parseInt(sel.dataset.companyId));
       });
@@ -376,12 +381,18 @@ function showAllTemplates(contactId, contacts) {
   div.querySelectorAll('.btn-mark-done').forEach(btn => {
     btn.addEventListener('click', async () => {
       const stepIdx = parseInt(btn.dataset.stepIdx);
+      const stepInfo = STEPS[stepIdx];
       const companyId = ct.tracked_company_id;
       const nextStep = Math.min(stepIdx + 1, STEPS.length - 1);
       btn.disabled = true; btn.textContent = 'Logging...';
       await fetch(`/api/tracker/contacts/${ct.id}/advance-step`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step: nextStep, action_taken: STEPS[stepIdx].label, details: `Completed ${STEPS[stepIdx].channel} step` }),
+        body: JSON.stringify({
+          step: nextStep,
+          action_taken: stepInfo.bhAction || stepInfo.label,
+          details: `[${stepInfo.bhAction}] ${stepInfo.label} — ${stepInfo.channel}`,
+          bh_action: stepInfo.bhAction,
+        }),
       });
       loadContacts(companyId);
     });

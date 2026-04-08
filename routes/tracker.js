@@ -302,7 +302,7 @@ router.post('/activity/mark-synced', async (req, res) => {
 // POST — advance outreach step with activity logging
 router.post('/contacts/:contactId/advance-step', async (req, res) => {
   try {
-    const { step, action_taken } = req.body;
+    const { step, action_taken, bh_action } = req.body;
     const contactId = parseInt(req.params.contactId);
 
     // Update step
@@ -313,11 +313,11 @@ router.post('/contacts/:contactId/advance-step', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Contact not found' });
     const contact = result.rows[0];
 
-    // Log the activity
+    // Log the activity — action is the BH note action type (BD Message, Reverse Market, etc.)
     await db.query(
       `INSERT INTO activity_log (tracked_contact_id, bullhorn_contact_id, action, details)
        VALUES ($1, $2, $3, $4)`,
-      [contactId, contact.bullhorn_id || null, action_taken || `Advanced to step ${step}`, req.body.details || '']
+      [contactId, contact.bullhorn_id || null, bh_action || action_taken || `Advanced to step ${step}`, req.body.details || '']
     );
 
     res.json(contact);
