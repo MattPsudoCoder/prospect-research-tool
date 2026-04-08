@@ -315,8 +315,9 @@ function showAllTemplates(contactId, contacts) {
   html += `<strong style="font-size:15px;">${esc(ct.name)} — Outreach Scripts</strong>`;
 
   for (const ts of TEMPLATE_STEPS) {
-    const content = templates[ts.key];
-    if (!content) continue;
+    const rawContent = templates[ts.key];
+    if (!rawContent) continue;
+    const content = templateText(rawContent);
 
     const isCurrent = ts.key === currentKey;
     const borderColor = isCurrent ? '#4f6ef7' : '#e2e4ea';
@@ -332,7 +333,7 @@ function showAllTemplates(contactId, contacts) {
     html += `<div class="template-content" style="white-space:pre-wrap;line-height:1.6;">${formatTemplateContent(content, ts.channel)}</div>`;
     html += `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">`;
     html += `<button class="btn btn-primary btn-sm copy-btn" data-content="${escAttr(content)}">Copy</button>`;
-    html += templateActionButton(ct, ts, content);
+    html += templateActionButton(ct, ts, rawContent);
     html += `</div>`;
     html += `</div>`;
   }
@@ -368,7 +369,7 @@ function showAllTemplates(contactId, contacts) {
   });
 }
 
-function templateActionButton(ct, ts, content) {
+function templateActionButton(ct, ts, rawContent) {
   let btns = '';
   // LinkedIn actions
   if (ts.channel === 'LinkedIn' && ct.linkedin_url) {
@@ -376,10 +377,8 @@ function templateActionButton(ct, ts, content) {
   }
   // Email actions — compose with subject+body
   if (ts.channel === 'Email' && ct.email) {
-    const subjectMatch = content.match(/^(?:Subject:\s*)(.*?)(?:\n)/i);
-    const subject = subjectMatch ? encodeURIComponent(subjectMatch[1].trim()) : '';
-    const body = subjectMatch ? encodeURIComponent(content.slice(subjectMatch[0].length).trim()) : encodeURIComponent(content);
-    btns += `<a href="mailto:${esc(ct.email)}?subject=${subject}&body=${body}" class="btn btn-sm" style="background:#e74c3c;color:#fff;text-decoration:none;">Compose Email</a>`;
+    const { subject, body } = extractEmailParts(rawContent);
+    btns += `<a href="mailto:${esc(ct.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}" class="btn btn-sm" style="background:#e74c3c;color:#fff;text-decoration:none;">Compose Email</a>`;
   }
   // Phone actions
   if ((ts.channel === 'Phone' || ts.channel === 'SMS') && ct.phone) {
@@ -391,6 +390,27 @@ function templateActionButton(ct, ts, content) {
     btns += `<button class="btn btn-sm btn-mark-done" data-step-idx="${stepIdx}" style="background:#2c2f3e;color:#fff;">Done</button>`;
   }
   return btns;
+}
+
+/** Normalise template content — handles both {subject,body} objects and plain strings */
+function templateText(raw) {
+  if (!raw) return '';
+  if (typeof raw === 'object') {
+    if (raw.subject && raw.body) return `Subject: ${raw.subject}\n\n${raw.body}`;
+    if (raw.body) return raw.body;
+    return JSON.stringify(raw);
+  }
+  return String(raw);
+}
+
+/** Extract subject + body from a template (object or string format) */
+function extractEmailParts(raw) {
+  if (!raw) return { subject: '', body: '' };
+  if (typeof raw === 'object' && raw.subject) return { subject: raw.subject, body: raw.body || '' };
+  const str = String(raw);
+  const m = str.match(/^(?:Subject:\s*)(.*?)(?:\n\n|\n)/i);
+  if (m) return { subject: m[1].trim(), body: str.slice(m[0].length).trim() };
+  return { subject: '', body: str };
 }
 
 function formatTemplateContent(content, channel) {
@@ -421,11 +441,9 @@ function stepActionButton(ct, step) {
     return `<a href="${esc(ct.linkedin_url)}" target="_blank" class="btn btn-sm btn-step-action" style="background:#0077b5;color:#fff;">Open LinkedIn</a>`;
   }
   if (channel === 'Email' && ct.email) {
-    const tmpl = ct.outreach_templates?.[step.actionKey] || '';
-    const subjectMatch = tmpl.match(/^(?:Subject:\s*)(.*?)(?:\n)/i);
-    const subject = subjectMatch ? encodeURIComponent(subjectMatch[1].trim()) : '';
-    const body = subjectMatch ? encodeURIComponent(tmpl.slice(subjectMatch[0].length).trim()) : encodeURIComponent(tmpl);
-    return `<a href="mailto:${esc(ct.email)}?subject=${subject}&body=${body}" class="btn btn-sm btn-step-action" style="background:#e74c3c;color:#fff;">Compose Email</a>`;
+    const raw = ct.outreach_templates?.[step.actionKey] || '';
+    const { subject, body } = extractEmailParts(raw);
+    return `<a href="mailto:${esc(ct.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}" class="btn btn-sm btn-step-action" style="background:#e74c3c;color:#fff;">Compose Email</a>`;
   }
   if ((channel === 'Phone' || channel === 'Phone/SMS') && ct.phone) {
     return `<a href="tel:${esc(ct.phone)}" class="btn btn-sm btn-step-action" style="background:#27ae60;color:#fff;">Call ${esc(ct.phone)}</a>`;
