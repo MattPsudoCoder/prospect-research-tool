@@ -221,7 +221,7 @@ async function loadContacts(companyId) {
           body: JSON.stringify({
             step: newStep,
             action_taken: stepInfo.bhAction || stepInfo.label,
-            details: `[${stepInfo.bhAction}] ${stepInfo.label} — ${stepInfo.channel}`,
+            details: `${stepInfo.label} — ${stepInfo.channel}`,
             bh_action: stepInfo.bhAction,
           }),
         });
@@ -390,7 +390,7 @@ function showAllTemplates(contactId, contacts) {
         body: JSON.stringify({
           step: nextStep,
           action_taken: stepInfo.bhAction || stepInfo.label,
-          details: `[${stepInfo.bhAction}] ${stepInfo.label} — ${stepInfo.channel}`,
+          details: `${stepInfo.label} — ${stepInfo.channel}`,
           bh_action: stepInfo.bhAction,
         }),
       });

@@ -213,9 +213,8 @@ router.post('/sync-day', async (req, res) => {
     const results = [];
     for (const act of activities) {
       try {
-        // Add note to Bullhorn
-        const noteText = `[${act.action}] ${act.details || ''}`.trim();
-        await bh.addNote(act.bullhorn_id, act.action, noteText);
+        // Add note to Bullhorn — action is the BH type, details is the human-readable comment
+        await bh.addNote(act.bullhorn_id, act.action, act.details || act.action);
 
         // Mark as synced
         await db.query('UPDATE activity_log SET synced_to_bullhorn = TRUE WHERE id = $1', [act.id]);
