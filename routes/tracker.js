@@ -8,6 +8,28 @@ try {
   if (process.env.ANTHROPIC_API_KEY) outreach = require('../services/outreach');
 } catch { /* Claude features disabled */ }
 
+/* ── Validation helpers ───────────────────────────────────────── */
+
+const VALID_SIGNAL_STRENGTHS = ['High', 'Medium', 'Low'];
+
+const NON_US_PREFIXES = ['+91', '+972', '+44', '+49', '+55', '+57', '+61', '+86', '+375', '+33', '+81', '+82', '+65', '+971'];
+
+function isNonUSPhone(phone) {
+  if (!phone) return false;
+  const trimmed = phone.trim();
+  return NON_US_PREFIXES.some(p => trimmed.startsWith(p));
+}
+
+function isValidEmail(email) {
+  if (!email) return true; // optional field
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidLinkedIn(url) {
+  if (!url) return true; // optional field
+  return url.includes('linkedin.com');
+}
+
 // GET all tracked companies
 router.get('/', async (req, res) => {
   try {
@@ -25,6 +47,19 @@ router.post('/', async (req, res) => {
   try {
     const { company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength } = req.body;
 
+    // ── Guardrails ──
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Company name is required' });
+    if (signal_strength && !VALID_SIGNAL_STRENGTHS.includes(signal_strength)) {
+      return res.status(400).json({ error: `signal_strength must be one of: ${VALID_SIGNAL_STRENGTHS.join(', ')}. Got: "${signal_strength}"` });
+    }
+    if (!hiring_signals || !hiring_signals.trim()) {
+      return res.status(400).json({ error: 'hiring_signals is required — must have at least one confirmed signal before pushing to tracker' });
+    }
+
+    const warnings = [];
+    if (!ats_detected || ats_detected === '—' || ats_detected === '-') warnings.push('No ATS detected — verify hiring via job boards');
+    if (!roles_found || roles_found === '—' || roles_found === '-') warnings.push('No roles found — verify open positions');
+
     // Prevent duplicates
     const existing = await db.query(
       'SELECT id FROM tracked_companies WHERE LOWER(name) = LOWER($1)',
@@ -37,9 +72,11 @@ router.post('/', async (req, res) => {
     const result = await db.query(
       `INSERT INTO tracked_companies (company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [company_id, name, ats_detected || '', roles_found || '', hiring_signals || '', keywords || '', signal_strength || '']
+      [company_id, name.trim(), ats_detected || '', roles_found || '', hiring_signals || '', keywords || '', signal_strength || '']
     );
-    res.json(result.rows[0]);
+    const response = result.rows[0];
+    if (warnings.length > 0) response.warnings = warnings;
+    res.json(response);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -48,6 +85,11 @@ router.post('/', async (req, res) => {
 // PATCH — update a tracked company
 router.patch('/:id', async (req, res) => {
   try {
+    // ── Guardrails ──
+    if (req.body.signal_strength && !VALID_SIGNAL_STRENGTHS.includes(req.body.signal_strength)) {
+      return res.status(400).json({ error: `signal_strength must be one of: ${VALID_SIGNAL_STRENGTHS.join(', ')}` });
+    }
+
     const fields = ['ats_detected', 'roles_found', 'hiring_signals', 'keywords', 'signal_strength', 'status', 'notes'];
     const updates = [];
     const values = [];
@@ -101,6 +143,22 @@ router.get('/:companyId/contacts', async (req, res) => {
 router.post('/:companyId/contacts', async (req, res) => {
   try {
     const { name, title, linkedin_url, email, phone } = req.body;
+
+    // ── Guardrails ──
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Contact name is required' });
+    if (isNonUSPhone(phone)) {
+      return res.status(400).json({ error: `Non-US phone number rejected: "${phone}". Only US-based contacts should be added.` });
+    }
+    if (!email && !linkedin_url) {
+      return res.status(400).json({ error: 'At least one of email or linkedin_url is required — must have a way to reach the contact' });
+    }
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({ error: `Invalid email format: "${email}"` });
+    }
+    if (linkedin_url && !isValidLinkedIn(linkedin_url)) {
+      return res.status(400).json({ error: `Invalid LinkedIn URL: "${linkedin_url}" — must contain linkedin.com` });
+    }
+
     const result = await db.query(
       `INSERT INTO tracked_contacts (tracked_company_id, name, title, linkedin_url, email, phone)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
