@@ -5,35 +5,89 @@ Run the complete prospect research pipeline for Matthew's tech recruitment desk 
 ## ICP Criteria
 
 - **Geography:** United States
-- **Company size:** 100–1,000 employees
+- **Company size:** 50–1,500 employees (configurable: `MIN_EMPLOYEES=50`, `MAX_EMPLOYEES=1500`)
 - **Exclude:** consulting, staffing, government, nonprofit, agencies
-- **Roles:** Software / Frontend / Backend / Mobile / ML engineers + engineering leadership (VP Eng, Director Eng, CTO, Head of Eng, Engineering Manager)
+- **Roles:** Software / Frontend / Backend / Mobile / ML engineers + engineering leadership
 - **Tech stacks:** TypeScript, React, Node.js, Scala (functional: ZIO, Cats, Cats Effect, Tapir, http4s), Java, Python, Go/Golang, iOS, Android, Flutter
 - **NOT interested in:** DevOps, SRE, Platform Engineering roles
 - **Signals:** Recent funding, exec hires, expansion, IPO prep, product launches, high job velocity, recent engineering hires
 
+## Configuration (tune after runs)
+
+```
+MIN_EMPLOYEES = 50
+MAX_EMPLOYEES = 1500
+SMALL_COMPANY_THRESHOLD = 250        # Below this, use flat hire count
+SMALL_COMPANY_MIN_HIRES = 2          # Minimum recent hires to pass (under threshold)
+LARGE_COMPANY_HIRE_PERCENT = 0.5     # Hires as % of headcount (at/above threshold)
+DISCOVERY_WINDOW_MONTHS = 4          # How far back to search for new hires
+DEDUP_WINDOW_DAYS = 14               # Skip companies researched within this window
+BH_GATE_DAYS = 60                    # Bullhorn meaningful activity window
+```
+
+### Scoring Weights (configurable)
+
+```
+WEIGHT_HIRE_VELOCITY = 0.25          # Recent hires adjusted for company size
+WEIGHT_SCALA_FUNCTIONAL = 0.20       # Priority niche bonus (ZIO, Cats, etc.)
+WEIGHT_FUNDING_RECENCY = 0.15        # Funding in last 12 months
+WEIGHT_OPEN_ROLES = 0.20             # Confirmed open roles from job boards
+WEIGHT_KEYWORD_MATCH = 0.20          # How well postings match ICP tech stacks
+```
+
+Score = weighted sum, each dimension 0-5, final score 0-5. Hard cutoff at 2.0 — below this, don't push to tracker.
+
+**Score breakdown must be included per company** so Matthew can see why a company ranked where it did.
+
+## Field Requirements
+
+**Required (must have or don't push):**
+- Company name
+- At least one confirmed signal (recent hires, open role, or funding)
+- At least one contact identified
+
+**Optional (populate if available, leave empty if not):**
+- ATS detected
+- Salary ranges
+- Tech stack detail (from postings)
+- Funding data
+- Specific role URLs
+
+Don't lose a qualified prospect because one optional field is missing.
+
 ## Workflow — Execute All Steps
+
+### Step 0: Dedup Against Tracker
+
+Before any research, fetch existing tracker companies:
+```bash
+curl -s https://prospect-research-tool-production.up.railway.app/api/tracker
+```
+
+Extract all company names. Skip any company already in the tracker during discovery. This prevents re-researching companies from previous runs.
 
 ### Step 1: Discover Companies Through Hiring Evidence
 
-**Primary method: ZoomInfo talent movement search.** Search for engineers who recently started new roles — then aggregate by company to find who's actively hiring. This is the strongest signal because it's proof of closed hires, not just open postings.
+**Primary method: ZoomInfo talent movement search.** Search for engineers who recently started new roles — then aggregate by company. This is proof of closed hires, not just open postings.
 
-Run these ZoomInfo `search_contacts` queries in parallel. All with:
+Run these ZoomInfo `search_contacts` queries. All with:
 - `department` = "Engineering & Technical"
-- `positionStartDateMin` = 4 months ago
-- `employeeCount` = "100to249,250to499,500to999"
+- `positionStartDateMin` = 4 months ago (configurable: `DISCOVERY_WINDOW_MONTHS`)
+- `employeeCount` = "50to99,100to249,250to499,500to999,1000to4999" (filtered to ≤1500 post-search)
 - `country` = "United States"
 - `pageSize` = 25
+
+**Rate limiting: stagger searches with 2-3 second delays between each. On 429 responses, back off 30 seconds and retry up to 3 times. Max 3 concurrent ZoomInfo requests at any time.**
 
 **Search 1 — Frontend/Fullstack:**
 - `jobTitle` = "typescript OR react OR node.js OR frontend engineer"
 
-**Search 2 — Backend (JVM/Functional):**
+**Search 2 — Backend (JVM):**
 - `jobTitle` = "scala OR java OR backend engineer"
 
-**Search 3 — Scala Functional (high-value niche):**
+**Search 3 — Scala Functional (priority niche):**
 - `jobTitle` = "scala" combined with keywords: ZIO, Cats, Cats Effect, Tapir, http4s, functional
-- This is Matthew's specialist niche — any company hiring functional Scala engineers is a top-tier prospect
+- Any company hiring functional Scala engineers is a **top-tier prospect** — flag and prioritise regardless of other scores
 
 **Search 4 — Golang:**
 - `jobTitle` = "golang OR go engineer"
@@ -48,104 +102,134 @@ Run these ZoomInfo `search_contacts` queries in parallel. All with:
 - `jobTitle` = "engineering manager OR VP engineering OR director engineering OR CTO"
 - `managementLevel` = "VP Level Exec,Director,C Level Exec,Manager"
 
-After all searches complete, **aggregate by company**. Any company that appears 2+ times across searches is actively hiring in Matthew's space. Rank by frequency — companies with the most recent hires across multiple role types are the best prospects.
+After all searches complete, **aggregate by company**. Apply size-aware threshold:
+- **Under 250 employees:** 2+ recent engineering hires passes (configurable: `SMALL_COMPANY_MIN_HIRES`)
+- **250+ employees:** recent hires ≥ 0.5% of headcount passes (configurable: `LARGE_COMPANY_HIRE_PERCENT`)
 
-**Secondary method: ZoomInfo company search.** Supplement with `search_companies` using ICP criteria (industry, size, location, funding, growth rate) to fill gaps if talent movement search returns fewer than 20 unique companies.
+Both pass into the pipeline — threshold affects scoring, not filtering. Companies below threshold still enter but score lower on hire velocity.
 
-**Tertiary method: Job board verification.** For the top companies from talent movement, verify current open roles:
-- Greenhouse API: `https://api.greenhouse.io/v1/boards/SLUG/jobs`
-- Lever API: `https://api.lever.co/v0/postings/SLUG`
-- Indeed MCP: `search_jobs` with company name + role-specific keywords (NOT just "software engineer" — use actual ICP role keywords: "react engineer", "scala developer", "iOS engineer", "golang", etc.)
-- Dice MCP: `search_jobs` with company name + role keywords
+**Fallback: ZoomInfo firmographic search.** If talent movement returns fewer than 20 unique companies, backfill using `search_companies` with these criteria:
+- `industryCodes` = "software" + sub-industries
+- `employeeCount` matching ICP range
+- `country` = "United States"
+- `oneYearEmployeeGrowthRateMin` = 15 (growing companies)
+- `fundingStartDate` = 12 months ago, `fundingAmountMin` = 5000 (recently funded)
+- Sort by `-revenue` to get established companies, then by `-employeeCount`
+- Exclude consulting/staffing by checking industry codes
 
-Capture from job boards: specific role titles, seniority levels, salary ranges, tech stacks mentioned, remote/onsite, number of open roles.
-
-### Step 2: Check Bullhorn (Company-Level Gate)
+### Step 2: Bullhorn Gate (Company-Level)
 
 Check if Bullhorn is connected: `curl -s https://prospect-research-tool-production.up.railway.app/api/bullhorn/status`
 
 If connected (`"connected": true`):
-- For each company, check Bullhorn via: `curl -s "https://prospect-research-tool-production.up.railway.app/api/bullhorn/check/company?name=COMPANY_NAME"`
-- **Gate out** only if there is **meaningful recent activity** in the last 60 days. Meaningful = evidence of actual human engagement:
+- For each company: `curl -s "https://prospect-research-tool-production.up.railway.app/api/bullhorn/check/company?name=COMPANY_NAME"`
+- **Gate out** only on **meaningful recent activity** in the last 60 days (configurable: `BH_GATE_DAYS`):
   - Notes from a BD/account manager (connected calls, meeting notes, outreach logs)
   - Vacancies added in the last 60 days (not stale unclosed ones from years ago)
   - Active placements (status = Active or Approved)
   - Recent leads with activity
 - **NOT meaningful** (do NOT gate on these alone):
   - Company merely existing in Bullhorn as "Prospect" with no notes/activity
-  - Old unclosed vacancies from months/years ago (bad CRM hygiene, not live work)
+  - Old unclosed vacancies from months/years ago (bad CRM hygiene)
   - "Active Account" status with no recent notes, calls, or new vacancies
   - Inactive/old placements
-- Flag companies that exist in Bullhorn but have no meaningful recent activity — these are fair game
 
-If not connected: skip Bullhorn checks, flag all companies for manual BH review later, and continue.
+If not connected: skip Bullhorn checks, flag all companies for manual BH review, continue.
 
-### Step 3: Research Each Company
+### Step 3: Verify Hiring (Job Boards)
 
-For each company that passes the Bullhorn gate, gather:
+For each company that passes the gate, search for current open roles using **ICP-specific keywords** (not generic "software engineer"):
 
-**From ZoomInfo:** `search_companies` or `enrich_companies` for employee count, revenue, funding history, industry, growth rate.
+**Greenhouse** — public job board: `https://api.greenhouse.io/v1/boards/SLUG/jobs` (no auth needed, this is their public board API — slugify the company name)
 
-**From ZoomInfo new hires:** Count of engineering hires in last 6 months (using `positionStartDateMin`). This tells you the velocity of hiring.
+**Lever** — public job board: `https://api.lever.co/v0/postings/SLUG` (no auth needed, public API — slugify the company name)
 
-**From job boards (Step 1 results):** Open roles, seniority, salary ranges, tech stacks.
+**Indeed MCP** — `search_jobs` with company name + role keywords. Run multiple searches per company:
+- `"react engineer" OR "frontend developer"` at COMPANY
+- `"scala" OR "java engineer" OR "backend"` at COMPANY
+- `"golang" OR "go developer"` at COMPANY
+- `"iOS engineer" OR "android" OR "mobile"` at COMPANY
+- `"python engineer" OR "machine learning"` at COMPANY
 
-**From web search:** Recent funding rounds, executive moves, expansion news, product launches, layoff warnings.
+**Dice MCP** — `search_jobs` with same keyword approach as Indeed.
 
-**Compile per company:**
-- Hiring signals summary
-- Tech stack (confirmed from job postings, not guessed)
-- Keywords for tracker
-- Signal strength (High/Medium/Low based on evidence)
-- Role details: what specific roles, what level, what comp
+**Note on LinkedIn Jobs, Built In, Wellfound:** These cannot be searched via API/MCP currently. If a company has zero results on Greenhouse/Lever/Indeed/Dice, flag as "check LinkedIn Jobs / Built In / Wellfound manually" — some companies post exclusively on these platforms.
 
-### Step 4: Push Qualifying Companies to Tracker
+Capture from job boards: specific role titles, seniority levels, salary ranges, tech stacks mentioned, remote/onsite, number of open roles.
 
-For each company:
+### Step 4: Research Each Company
+
+For each qualifying company:
+
+**ZoomInfo data:** employee count, revenue, funding history, industry, growth rate.
+
+**Hire velocity:** count of engineering hires in last 6 months from Step 1 data.
+
+**Web search:** recent funding rounds, executive moves, expansion news, product launches, layoff warnings.
+
+**Score the company** using the weighted formula:
+- **Hire velocity** (0.25): recent hires adjusted for company size. Score 5 if well above threshold, 3 if at threshold, 1 if below.
+- **Scala/functional match** (0.20): 5 if confirmed Scala functional (ZIO/Cats/etc.), 3 if Scala/Java, 1 if other stack, 0 if no match.
+- **Funding recency** (0.15): 5 if funded in last 6 months, 3 if last 12 months, 1 if older, 0 if no funding data.
+- **Open roles** (0.20): 5 if 5+ confirmed open eng roles, 3 if 2-4, 1 if 1, 0 if none found.
+- **Keyword match** (0.20): how well job postings match ICP tech stacks. 5 = exact match (React/TS/Scala/Go/iOS), 3 = partial, 1 = weak.
+
+Output: overall score (0-5) + per-dimension breakdown with reasoning.
+
+### Step 5: Push Companies to Tracker
+
+For each company scoring ≥ 2.0:
 ```bash
 curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracker \
   -H "Content-Type: application/json" \
-  -d '{"name":"COMPANY_NAME","ats_detected":"ATS_NAME","roles_found":"ROLE_DETAILS","hiring_signals":"SIGNALS","keywords":"KEYWORDS","signal_strength":"High"}'
+  -d '{"name":"COMPANY_NAME","ats_detected":"ATS_NAME","roles_found":"ROLE_DETAILS","hiring_signals":"SIGNALS","keywords":"KEYWORDS","signal_strength":"High|Medium|Low"}'
 ```
 
-Populate ALL fields — no empty ATS or roles fields. If we couldn't determine ATS, say "Unknown" not empty.
+Signal strength mapping: score ≥ 4.0 = High, ≥ 3.0 = Medium, ≥ 2.0 = Low.
 
 Note the returned `id` — needed for adding contacts.
 
-### Step 5: Find Hiring Managers via ZoomInfo
+### Step 6: Find Hiring Managers (ZoomInfo)
 
-For each qualifying company, use ZoomInfo `search_contacts` with:
-- `companyName` = company name
-- `managementLevel` = "VP Level Exec,Director,C Level Exec"
-- `department` = "Engineering & Technical"
-- Target **2–3 contacts per company**
+For each company, use ZoomInfo `search_contacts`. **Contact lookup order flexes by company size:**
 
-Priority titles (in order):
-1. VP of Engineering / VP Engineering
-2. CTO / Chief Technology Officer
+**Under 150 employees:**
+1. CTO / Chief Technology Officer
+2. VP of Engineering
 3. Head of Engineering
-4. Director of Engineering
-5. Engineering Manager
 
-Capture: name, title, email, phone, LinkedIn URL.
+**150-500 employees:**
+1. VP of Engineering
+2. Director of Engineering
+3. Head of Engineering
 
-If ZoomInfo returns no engineering leadership, try `search_contacts` with broader title keywords: "engineering", "CTO", "technical".
+**500+ employees:**
+1. Director of Engineering
+2. VP of Engineering
+3. CTO (still pull — Matthew has a specific use case for CTO contacts at larger companies)
 
-### Step 6: Enrich Contacts
+Target **2-3 contacts per company.** Search with:
+- `companyName` = company name
+- `managementLevel` = appropriate levels for company size
+- `department` = "Engineering & Technical"
 
-Use ZoomInfo `enrich_contacts` to get verified business email and LinkedIn URL for each contact. **Flag the credit cost before running** — enrichment consumes ZoomInfo Bulk Credits.
+If ZoomInfo returns nothing, broaden with `jobTitle` containing "engineering", "CTO", "technical".
 
-### Step 7: Check Contacts Against Bullhorn
+### Step 7: Enrich Contacts (ZoomInfo)
+
+Use ZoomInfo `enrich_contacts` to get verified business email and LinkedIn URL. **Flag the credit cost before running** — enrichment consumes ZoomInfo Bulk Credits. Ask for approval if batch is large.
+
+### Step 8: Bullhorn Contact Check
 
 If Bullhorn is connected:
-- For each contact, search via: `curl -s "https://prospect-research-tool-production.up.railway.app/api/bullhorn/search/contact?firstName=FIRST&lastName=LAST"`
-- If contact exists with recent activity, flag as "already in BH — skip"
-- If contact exists but stale, flag as "in BH — update"
-- If contact doesn't exist, mark as "new — push"
+- For each contact: `curl -s "https://prospect-research-tool-production.up.railway.app/api/bullhorn/search/contact?firstName=FIRST&lastName=LAST"`
+- Existing with recent activity → "already in BH — skip"
+- Existing but stale → "in BH — update"
+- Not found → "new — push"
 
-If not connected: mark all as "BH unchecked" and continue.
+If not connected: mark all as "BH unchecked", continue.
 
-### Step 8: Add Contacts to Tracker
+### Step 9: Add Contacts to Tracker
 
 For each new contact:
 ```bash
@@ -154,48 +238,52 @@ curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracke
   -d '{"name":"FULL NAME","title":"JOB TITLE","linkedin_url":"URL","email":"EMAIL","phone":"PHONE"}'
 ```
 
-### Step 9: Summary Report
-
-After completing all steps, provide:
+### Step 10: Summary Report
 
 **Summary table:**
 
 | Metric | Count |
 |--------|-------|
 | Companies discovered (talent movement) | X |
-| Companies discovered (firmographic search) | X |
+| Companies discovered (firmographic backfill) | X |
+| Skipped (already in tracker) | X |
 | Passed Bullhorn gate | X |
 | Gated out (active in BH) | X |
-| Added to tracker | X |
+| Scored ≥ 2.0 (pushed to tracker) | X |
+| Scored < 2.0 (dropped) | X |
 | Contacts identified | X |
 | Contacts enriched | X |
 | Contacts added to tracker | X |
-| Bullhorn status | Connected / Not connected |
 
-**Per-company detail:** For each company added, show:
+**Per-company detail:** For each company pushed, show:
 - Company name + employee count + industry
-- Number of recent eng hires (from talent movement search)
-- Open roles found (from job boards) with titles + seniority + comp ranges
-- Hiring signals
-- Contacts added (names + titles)
-- Bullhorn status (clear / gated / unchecked)
+- **Score: X.X** (hire velocity: X, scala match: X, funding: X, open roles: X, keyword match: X)
+- Recent eng hires: X in last 4 months
+- Open roles found: titles + seniority + comp ranges + source (GH/Lever/Indeed/Dice)
+- Hiring signals summary
+- Contacts added: names + titles
+- Bullhorn status: clear / gated / unchecked
 
-**Gaps & flags:**
+**Priority flags:**
+- 🟣 Scala/functional companies (ZIO, Cats, etc.) — always flag these first
+- Companies needing LinkedIn Jobs / Built In / Wellfound manual check
 - Companies needing LinkedIn sourcing for contacts
-- Companies with no verified open roles (lower confidence)
-- Contacts without email (need enrichment or LinkedIn)
-- Any Scala/functional companies found (flag as priority)
+- Contacts without email (need enrichment or manual LinkedIn)
+
+**Dropped companies (scored < 2.0):** List with score breakdown so Matthew can override if needed.
 
 ## Important Rules
 
-- **Evidence first** — talent movement search is the primary discovery method, not firmographic guessing
-- **Check Bullhorn before deep research** — don't waste time on companies already being worked
-- **Populate all tracker fields** — no empty ATS, roles, or signals fields
-- **Search job boards with ICP-specific keywords** — not generic "software engineer"
-- **Flag Scala functional companies as priority** — ZIO, Cats, Cats Effect, Tapir, http4s are Matthew's specialist niche
-- **Don't guess titles** — only add contacts ZoomInfo actually returns with verified data
+- **Evidence first** — talent movement is the primary discovery method
+- **Dedup before research** — check tracker state before every run
+- **Check Bullhorn before deep research** — don't waste time on active accounts
+- **Search job boards with ICP-specific keywords** — "react engineer", "scala developer", "golang", not "software engineer"
+- **Flag Scala functional as priority** — ZIO, Cats, Cats Effect, Tapir, http4s are the specialist niche
+- **Contact lookup order matches company size** — CTO at startups, Directors at larger orgs
+- **Rate limit ZoomInfo** — stagger calls, back off on 429s, max 3 concurrent
+- **Don't guess** — only add contacts ZoomInfo actually returns with verified data
 - **US only** — skip any company or contact outside the United States
-- **No consulting/staffing/agencies** — hard exclude, even if ZoomInfo returns them
-- **Disclose any API credit costs** if a ZoomInfo enrichment would consume credits
-- **If rate-limited**, wait and retry — don't skip companies silently
+- **No consulting/staffing/agencies** — hard exclude
+- **Disclose API credit costs** before running enrichment
 - **Always push changes** — git push after any commits, don't ask
+- **Run cadence:** on-demand via `/research`. Can be run daily/weekly — dedup logic prevents re-research within the configured window.
