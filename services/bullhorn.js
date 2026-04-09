@@ -223,4 +223,5 @@ async function addNote(contactId, action, comments) {
 module.exports = {
   setManualToken, clearManualToken, getManualToken, isConfigured, getCredentials,
   searchCompany, searchContact, checkCompany, createContact, addNote,
+  analyseNotes, NEGATIVE_SIGNAL_PHRASES, IGNORED_NOTE_ACTIONS,
 };

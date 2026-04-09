@@ -189,4 +189,4 @@ async function detectATS(companyName, icp) {
   return { ats: 'None detected', roles: [], count: 0, relevant_count: 0 };
 }
 
-module.exports = { detectATS, checkGreenhouse, checkLever, buildRoleKeywords };
+module.exports = { detectATS, checkGreenhouse, checkLever, buildRoleKeywords, isRelevantRole, isRelevantLocation, slugify };

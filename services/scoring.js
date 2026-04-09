@@ -129,4 +129,4 @@ function isWithin60Days(dateStr) {
   return d.getTime() > sixtyDaysAgo;
 }
 
-module.exports = { scoreProspect, CUTOFF, DIMENSIONS };
+module.exports = { scoreProspect, isWithin60Days, CUTOFF, DIMENSIONS };
