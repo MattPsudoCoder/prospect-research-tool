@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prospect Research — Prospects</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script>if(localStorage.getItem('darkMode')==='on')document.documentElement.classList.add('dark-mode');</script>
 </head>
 <body>
   <nav class="sidebar">
@@ -14,6 +15,7 @@
     <a href="/tracker" class="nav-link">Tracker</a>
     <a href="/icp" class="nav-link">ICP Settings</a>
     <a href="/history" class="nav-link">History</a>
+    <button class="dark-mode-toggle" id="darkToggle">Dark Mode</button>
   </nav>
 
   <main class="content">
@@ -63,6 +65,7 @@
   </main>
 
   <script src="/js/timezone-utils.js"></script>
+  <script src="/js/theme.js"></script>
   <script src="/js/prospects.js"></script>
 </body>
 </html>

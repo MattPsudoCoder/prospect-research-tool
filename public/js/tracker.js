@@ -3,6 +3,13 @@
 const trackerList = document.getElementById('trackerList');
 let bhConnected = false;
 let claudeAvailable = false;
+let allCompanies = [];
+const contactsCache = {};
+
+/* ── Filter controls ────────────────────────────────────────── */
+const trackerSearch = document.getElementById('trackerSearch');
+const trackerStepFilter = document.getElementById('trackerStepFilter');
+const trackerResultCount = document.getElementById('trackerResultCount');
 
 // Check what features are available
 fetch('/api/features').then(r => r.json()).then(f => { claudeAvailable = f.claude_api; }).catch(() => {});
@@ -17,6 +24,53 @@ const STEPS = [
   { id: 6, label: '5. Value-add email', channel: 'Email', tip: 'Give before you ask again', actionKey: 'step5_email', bhAction: 'Reverse Market' },
   { id: 7, label: '6. LinkedIn follow-up', channel: 'LinkedIn', tip: 'Soft close + market insight', actionKey: 'step6_linkedin', bhAction: 'Reverse Market' },
 ];
+
+// Populate step filter dropdown
+if (trackerStepFilter) {
+  STEPS.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.label;
+    trackerStepFilter.appendChild(opt);
+  });
+}
+
+function applyFilters() {
+  const search = (trackerSearch ? trackerSearch.value : '').toLowerCase().trim();
+  const stepVal = trackerStepFilter ? trackerStepFilter.value : '';
+  let visible = 0;
+
+  for (const c of allCompanies) {
+    const card = document.getElementById(`company-${c.id}`);
+    if (!card) continue;
+
+    let show = true;
+
+    // Name search
+    if (search && !c.name.toLowerCase().includes(search)) show = false;
+
+    // Step filter — company must have at least one contact at this step
+    if (show && stepVal !== '') {
+      const contacts = contactsCache[c.id];
+      if (contacts) {
+        const stepNum = parseInt(stepVal);
+        if (!contacts.some(ct => ct.outreach_step === stepNum)) show = false;
+      }
+      // If contacts haven't loaded yet, don't filter out
+    }
+
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  }
+
+  if (trackerResultCount) {
+    if (search || stepVal !== '') {
+      trackerResultCount.textContent = `${visible} of ${allCompanies.length} companies`;
+    } else {
+      trackerResultCount.textContent = `${allCompanies.length} companies`;
+    }
+  }
+}
 
 /* ── Bullhorn connection bar ─────────────────────────────────── */
 
@@ -101,15 +155,16 @@ async function syncDayToBullhorn() {
 async function loadTracker() {
   try {
     const res = await fetch('/api/tracker');
-    const companies = await res.json();
+    allCompanies = await res.json();
 
-    if (companies.length === 0) {
+    if (allCompanies.length === 0) {
       trackerList.innerHTML = '<div class="empty-state"><p>No tracked companies yet. Go to Prospects and click Track.</p></div>';
+      if (trackerResultCount) trackerResultCount.textContent = '';
       return;
     }
 
     trackerList.innerHTML = '';
-    for (const c of companies) {
+    for (const c of allCompanies) {
       const card = document.createElement('div');
       card.className = 'tracker-card';
       card.id = `company-${c.id}`;
@@ -157,6 +212,8 @@ async function loadTracker() {
     trackerList.querySelectorAll('.btn-push-all').forEach(btn => {
       btn.addEventListener('click', () => pushAllContacts(parseInt(btn.dataset.companyId)));
     });
+
+    applyFilters();
   } catch (err) {
     trackerList.innerHTML = '<div class="empty-state"><p>Failed to load tracker.</p></div>';
   }
@@ -167,9 +224,11 @@ async function loadContacts(companyId) {
   try {
     const res = await fetch(`/api/tracker/${companyId}/contacts`);
     const contacts = await res.json();
+    contactsCache[companyId] = contacts;
 
     if (contacts.length === 0) {
       listEl.innerHTML = '<p class="empty-contacts">No contacts yet.</p>';
+      applyFilters();
       return;
     }
 
@@ -265,6 +324,8 @@ async function loadContacts(companyId) {
     listEl.querySelectorAll('.btn-show-all-templates').forEach(btn => {
       btn.addEventListener('click', () => showAllTemplates(parseInt(btn.dataset.contactId), contacts));
     });
+
+    applyFilters();
   } catch (err) {
     listEl.innerHTML = '<p class="empty-contacts">Failed to load contacts.</p>';
   }
@@ -677,6 +738,16 @@ document.addEventListener('click', (e) => {
     window.open(url, 'prospect_outreach', 'popup=yes,width=1280,height=900,left=100,top=100');
   }
 });
+
+/* ── Filter event listeners ───────────────────────────────────── */
+if (trackerStepFilter) trackerStepFilter.addEventListener('change', applyFilters);
+if (trackerSearch) {
+  let searchTimeout;
+  trackerSearch.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(applyFilters, 250);
+  });
+}
 
 /* ── Init ─────────────────────────────────────────────────────── */
 checkBhStatus();

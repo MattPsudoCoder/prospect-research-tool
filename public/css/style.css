@@ -19,6 +19,89 @@
   --radius: 8px;
 }
 
+/* ── Dark mode overrides ─────────────────────────── */
+.dark-mode {
+  --bg: #13151a;
+  --sidebar-bg: #111320;
+  --sidebar-text: #8a8da0;
+  --sidebar-active: #e0e0e0;
+  --card-bg: #1c1e28;
+  --border: #2d303e;
+  --text: #d8dae0;
+  --text-muted: #8a8da0;
+  --primary: #6b8af7;
+  --primary-hover: #5a78e8;
+  --success: #2ecc71;
+  --warning: #f5b041;
+  --danger: #e74c3c;
+}
+
+.dark-mode input[type="text"],
+.dark-mode input[type="number"],
+.dark-mode input[type="email"],
+.dark-mode textarea,
+.dark-mode select {
+  background: var(--card-bg);
+  color: var(--text);
+  border-color: var(--border);
+}
+.dark-mode input:focus,
+.dark-mode textarea:focus,
+.dark-mode select:focus {
+  box-shadow: 0 0 0 3px rgba(107,138,247,0.15);
+}
+
+.dark-mode .result-card,
+.dark-mode .tracker-card { background: var(--card-bg); }
+.dark-mode .overlay-content { background: var(--card-bg); }
+.dark-mode .contact-form { background: #1a1c26; border-color: var(--primary); }
+.dark-mode .btn-secondary { background: #252836; border-color: var(--border); color: var(--text); }
+.dark-mode .btn-secondary:hover { background: #2f3348; }
+.dark-mode .step-select { background: var(--card-bg); color: var(--text); }
+
+/* Dark mode badges */
+.dark-mode .badge-high { background: #1a3d2a; color: #4ade80; }
+.dark-mode .badge-medium { background: #3d3015; color: #fbbf24; }
+.dark-mode .badge-low { background: #3d1a1a; color: #f87171; }
+.dark-mode .badge-yes { background: #1a3d2a; color: #4ade80; }
+.dark-mode .badge-source { background: #1a2740; color: #60a5fa; }
+.dark-mode .badge-status { background: #2a1a40; color: #a78bfa; }
+.dark-mode .status-completed { background: #1a3d2a; color: #4ade80; }
+.dark-mode .status-running { background: #1a2740; color: #60a5fa; }
+.dark-mode .status-error { background: #3d1a1a; color: #f87171; }
+.dark-mode .tag { background: #1a2740; color: #60a5fa; }
+
+/* Dark mode template display (overrides inline styles in tracker.js) */
+.dark-mode .template-display {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+/* Dark mode table */
+.dark-mode th { background: var(--bg); }
+.dark-mode tr:hover td { background: rgba(107,138,247,0.06); }
+
+/* Dark mode toggle button */
+.dark-mode-toggle {
+  margin-top: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: rgba(255,255,255,0.06);
+  color: var(--sidebar-text);
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.dark-mode-toggle:hover {
+  background: rgba(255,255,255,0.1);
+  color: #ccc;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
