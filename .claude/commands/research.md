@@ -68,7 +68,24 @@ Extract all company names. Skip any company already in the tracker during discov
 
 ### Step 1: Discover Companies Through Hiring Evidence
 
-**Primary method: ZoomInfo talent movement search.** Search for engineers who recently started new roles — then aggregate by company. This is proof of closed hires, not just open postings.
+**Two parallel discovery methods. Run both simultaneously.**
+
+#### Step 1a: Job Board Scanning (who's posting roles RIGHT NOW)
+
+Search Indeed and Dice for active engineering job postings using ICP-specific keywords. Run these searches in parallel:
+
+- `"react engineer" OR "frontend developer"` — US, direct hire only
+- `"scala developer" OR "java engineer"` — US, direct hire only
+- `"golang engineer" OR "go developer"` — US, direct hire only
+- `"iOS engineer" OR "android engineer" OR "mobile engineer"` — US, direct hire only
+
+On Indeed use `search_jobs` with `job_type: "fulltime"`. On Dice use `search_jobs` with `employer_types: ["Direct Hire"]` to exclude recruiter/staffing postings.
+
+Aggregate by company. Any company posting 3+ engineering roles across these searches = actively hiring. Capture the specific role titles, seniority, salary ranges, and tech stacks from the postings.
+
+#### Step 1b: ZoomInfo Talent Movement (who's CLOSING hires)
+
+Search for engineers who recently started new roles — proof of closed hires, not just open postings.
 
 Run these ZoomInfo `search_contacts` queries. All with:
 - `department` = "Engineering & Technical"
@@ -114,7 +131,14 @@ After all searches complete, **aggregate by company**. Apply size-aware threshol
 
 Both pass into the pipeline — threshold affects scoring, not filtering. Companies below threshold still enter but score lower on hire velocity.
 
-**Fallback: ZoomInfo firmographic search.** If talent movement returns fewer than 20 unique companies, backfill using `search_companies` with these criteria:
+#### Step 1c: Cross-Reference and Rank
+
+Merge company lists from 1a (job boards) and 1b (talent movement). Companies appearing in BOTH lists are the highest priority — they're hiring so aggressively they're both closing roles and still posting more. Rank by:
+1. Companies in both lists (strongest signal)
+2. Companies with high talent movement count only (hiring but not posting publicly — internal/referral pipeline)
+3. Companies with many job postings only (actively looking but may be earlier in the hiring cycle)
+
+**Fallback: ZoomInfo firmographic search.** If combined discovery returns fewer than 20 unique companies, backfill using `search_companies` with these criteria:
 - `industryCodes` = "software" + sub-industries
 - `employeeCount` matching ICP range
 - `country` = "United States"
