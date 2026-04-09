@@ -72,16 +72,29 @@ Extract all company names. Skip any company already in the tracker during discov
 
 #### Step 1a: Job Board Scanning (who's posting roles RIGHT NOW)
 
-Search Indeed and Dice for active engineering job postings using ICP-specific keywords. Run these searches in parallel:
+Scan job boards for active engineering postings using ICP-specific keywords. Run across ALL available sources:
 
-- `"react engineer" OR "frontend developer"` — US, direct hire only
-- `"scala developer" OR "java engineer"` — US, direct hire only
-- `"golang engineer" OR "go developer"` — US, direct hire only
-- `"iOS engineer" OR "android engineer" OR "mobile engineer"` — US, direct hire only
+**API/MCP accessible (search directly):**
+- **Indeed** — `search_jobs` with `job_type: "fulltime"`
+- **Dice** — `search_jobs` with `employer_types: ["Direct Hire"]` to exclude recruiter/staffing
 
-On Indeed use `search_jobs` with `job_type: "fulltime"`. On Dice use `search_jobs` with `employer_types: ["Direct Hire"]` to exclude recruiter/staffing postings.
+**Greenhouse/Lever public APIs (search by company slug):**
+- **Greenhouse** — `https://api.greenhouse.io/v1/boards/SLUG/jobs`
+- **Lever** — `https://api.lever.co/v0/postings/SLUG`
 
-Aggregate by company. Any company posting 3+ engineering roles across these searches = actively hiring. Capture the specific role titles, seniority, salary ranges, and tech stacks from the postings.
+**Web search (use WebSearch tool):**
+- **LinkedIn Jobs** — `site:linkedin.com/jobs "react engineer" OR "scala developer"` etc.
+- **Built In** — `site:builtin.com/jobs "react" OR "scala" OR "golang"` etc.
+- **Wellfound (AngelList)** — `site:wellfound.com/jobs "engineer"` etc.
+- **Google for Jobs** — `"software engineer" "react" OR "scala" OR "golang" jobs`
+
+Search keywords across all sources:
+- `"react engineer" OR "frontend developer"`
+- `"scala developer" OR "java engineer"`
+- `"golang engineer" OR "go developer"`
+- `"iOS engineer" OR "android engineer" OR "mobile engineer"`
+
+Filter to US, direct hire only (exclude recruiter/staffing postings). Aggregate by company. Any company posting 3+ engineering roles across these searches = actively hiring. Capture the specific role titles, seniority, salary ranges, and tech stacks from the postings.
 
 #### Step 1b: ZoomInfo Talent Movement (who's CLOSING hires)
 
@@ -183,7 +196,7 @@ For each company that passes the gate, search for current open roles using **ICP
 
 **Dice MCP** — `search_jobs` with same keyword approach as Indeed.
 
-**Note on LinkedIn Jobs, Built In, Wellfound:** These cannot be searched via API/MCP currently. If a company has zero results on Greenhouse/Lever/Indeed/Dice, flag as "check LinkedIn Jobs / Built In / Wellfound manually" — some companies post exclusively on these platforms.
+**LinkedIn Jobs, Built In, and Wellfound** should already have been searched in Step 1a via WebSearch. If a company still has zero results across all sources, flag as "no public postings found — may hire via internal/referral pipeline only".
 
 Capture from job boards: specific role titles, seniority levels, salary ranges, tech stacks mentioned, remote/onsite, number of open roles.
 
