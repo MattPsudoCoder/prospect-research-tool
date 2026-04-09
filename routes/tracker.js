@@ -45,6 +45,33 @@ router.post('/', async (req, res) => {
   }
 });
 
+// PATCH — update a tracked company
+router.patch('/:id', async (req, res) => {
+  try {
+    const fields = ['ats_detected', 'roles_found', 'hiring_signals', 'keywords', 'signal_strength', 'status', 'notes'];
+    const updates = [];
+    const values = [];
+    let idx = 1;
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        updates.push(`${f} = $${idx++}`);
+        values.push(req.body[f]);
+      }
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    updates.push(`updated_at = NOW()`);
+    values.push(req.params.id);
+    const result = await db.query(
+      `UPDATE tracked_companies SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE a tracked company
 router.delete('/:id', async (req, res) => {
   try {
