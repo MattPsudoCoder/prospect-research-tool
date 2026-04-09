@@ -77,6 +77,8 @@ Run these ZoomInfo `search_contacts` queries. All with:
 - `country` = "United States"
 - `pageSize` = 25
 
+**CRITICAL: ALL contact searches must include `country` = "United States".** Do not add contacts based outside the US — check phone country codes (+91 India, +972 Israel, +44 UK etc.) as a secondary filter. Many Israeli/Indian-founded companies have engineering leadership overseas that is useless for US recruitment outreach.
+
 **Rate limiting: stagger searches with 2-3 second delays between each. On 429 responses, back off 30 seconds and retry up to 3 times. Max 3 concurrent ZoomInfo requests at any time.**
 
 **Run these 5 primary searches first (these are the core placement stacks):**
@@ -212,10 +214,13 @@ For each company, use ZoomInfo `search_contacts`. **Contact lookup order flexes 
 2. VP of Engineering
 3. CTO (still pull — Matthew has a specific use case for CTO contacts at larger companies)
 
-Target **2-3 contacts per company.** Search with:
+Search with:
 - `companyName` = company name
 - `managementLevel` = appropriate levels for company size
 - `department` = "Engineering & Technical"
+- `country` = "United States" **(MANDATORY — never omit this)**
+
+Find ALL relevant hiring decision makers, not an arbitrary cap of 2-3. A 500-person company may have 8-10 engineering leaders who make hiring decisions. Add every VP, Director, and Engineering Manager who is US-based.
 
 If ZoomInfo returns nothing, broaden with `jobTitle` containing "engineering", "CTO", "technical".
 
