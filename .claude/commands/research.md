@@ -79,6 +79,8 @@ Run these ZoomInfo `search_contacts` queries. All with:
 
 **Rate limiting: stagger searches with 2-3 second delays between each. On 429 responses, back off 30 seconds and retry up to 3 times. Max 3 concurrent ZoomInfo requests at any time.**
 
+**Run these 5 primary searches first (these are the core placement stacks):**
+
 **Search 1 — Frontend/Fullstack:**
 - `jobTitle` = "typescript OR react OR node.js OR frontend engineer"
 
@@ -95,10 +97,12 @@ Run these ZoomInfo `search_contacts` queries. All with:
 **Search 5 — Mobile:**
 - `jobTitle` = "iOS OR android OR mobile OR flutter engineer"
 
-**Search 6 — Python/ML:**
+**Only run these fallback searches if the 5 primary searches return fewer than 20 unique companies:**
+
+**Fallback 6 — Python/ML:**
 - `jobTitle` = "python OR machine learning OR ML engineer"
 
-**Search 7 — Engineering Leadership:**
+**Fallback 7 — Engineering Leadership:**
 - `jobTitle` = "engineering manager OR VP engineering OR director engineering OR CTO"
 - `managementLevel` = "VP Level Exec,Director,C Level Exec,Manager"
 
