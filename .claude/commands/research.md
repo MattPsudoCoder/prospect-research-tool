@@ -221,7 +221,7 @@ If ZoomInfo returns nothing, broaden with `jobTitle` containing "engineering", "
 
 ### Step 7: Enrich Contacts (ZoomInfo)
 
-Use ZoomInfo `enrich_contacts` to get verified business email and LinkedIn URL. **Flag the credit cost before running** — enrichment consumes ZoomInfo Bulk Credits. Ask for approval if batch is large.
+Use ZoomInfo `enrich_contacts` to get verified business email and LinkedIn URL. This consumes Bulk Credits (1 per contact). As of April 2026, Matthew has 1,000 bulk credits/month — auto-enrich without asking. If remaining credits drop below 100, flag it.
 
 ### Step 8: Bullhorn Contact Check
 
