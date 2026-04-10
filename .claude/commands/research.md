@@ -166,15 +166,19 @@ Check if Bullhorn is connected: `curl -s https://prospect-research-tool-producti
 
 If connected (`"connected": true`):
 - For each company: `curl -s "https://prospect-research-tool-production.up.railway.app/api/bullhorn/check/company?name=COMPANY_NAME"`
-- **Gate out** only on **meaningful recent activity** in the last 60 days (configurable: `BH_GATE_DAYS`):
-  - Notes from a BD/account manager (connected calls, meeting notes, outreach logs)
-  - Vacancies added in the last 60 days (not stale unclosed ones from years ago)
-  - Active placements (status = Active or Approved)
-  - Recent leads with activity
-- **NOT meaningful** (do NOT gate on these alone):
-  - Company merely existing in Bullhorn as "Prospect" with no notes/activity
-  - Old unclosed vacancies from months/years ago (bad CRM hygiene)
-  - "Active Account" status with no recent notes, calls, or new vacancies
+- **Gate out** only on **active engagement** in the last 60 days (configurable: `BH_GATE_DAYS`):
+  - New job/vacancy added in the last 60 days
+  - New placement added
+  - Meetings logged
+  - Connected calls tracked
+- **NOT active engagement** (do NOT gate on these — outreach alone does not grant client ownership):
+  - LinkedIn messages or BD messages sent
+  - Emails sent
+  - Attempted calls (not connected)
+  - Mailshots / bulk outreach
+  - Company merely existing in Bullhorn as "Prospect"
+  - Old unclosed vacancies from months/years ago
+  - "Active Account" status with no jobs, placements, meetings, or connected calls
   - Inactive/old placements
 
 If not connected: skip Bullhorn checks, flag all companies for manual BH review, continue.

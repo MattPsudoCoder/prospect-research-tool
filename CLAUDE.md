@@ -83,7 +83,9 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 
 ## BULLHORN RULES
 
-- 60-day gate: Companies with meaningful BH notes in last 60 days are auto-discarded. Mailshot-only doesn't count.
+- 60-day gate: Companies with ACTIVE ENGAGEMENT in last 60 days are auto-discarded.
+- **Active engagement means ONLY:** new job/vacancy added, new placement, meetings logged, connected calls. These prove someone is actively working the account.
+- **NOT active engagement (do NOT gate on these):** LinkedIn messages, emails sent, attempted calls, mailshots, BD messages, notes without meetings/calls. Outreach alone does not grant client ownership.
 - Contacts auto-push to BH when added to tracker (if BH is connected).
 - End-of-day sync: "Sync Day" button pushes all unsynced activities as BH Notes with correct action types.
 - Each outreach step maps to a BH action type (BD Message, Reverse Market, Attempted BD Call).
