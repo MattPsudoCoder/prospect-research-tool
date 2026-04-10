@@ -181,7 +181,8 @@ async function loadTracker() {
         <div class="result-card-meta">
           <span><strong>ATS:</strong> ${c.ats_detected && c.ats_detected !== 'None' ? esc(c.ats_detected) : '—'}</span>
           <span><strong>Roles:</strong> ${formatRolesInline(c.roles_found)}</span>
-          ${c.hiring_signals ? `<span><strong>Signals:</strong> ${esc(truncate(c.hiring_signals, 120))}</span>` : ''}
+          ${c.hiring_signals ? `<span><strong>Signals:</strong> ${esc(c.hiring_signals)}</span>` : ''}
+          <span class="tracker-date"><strong>Added:</strong> ${formatCentralDate(c.created_at)}</span>
         </div>
         ${c.keywords ? `<div class="result-card-tags">${c.keywords.split(',').map(k => `<span class="tag">${esc(k.trim())}</span>`).join('')}</div>` : ''}
         <div class="contacts-section" id="contacts-${c.id}">
