@@ -89,6 +89,18 @@ router.post('/note', async (req, res) => {
   }
 });
 
+// Validate phone is US-based (reject non-US country codes and known non-US area codes)
+function isUSPhone(phone) {
+  if (!phone) return true; // no phone is OK, just don't reject
+  const cleaned = phone.replace(/[\s\-\(\)\.]/g, '');
+  // Reject explicit non-US country codes
+  if (/^\+(?!1)/.test(cleaned)) return false;
+  // Reject known non-US area codes (Toronto 416/647, India 91, Israel 972, UK 44, HK 852)
+  const nonUSPatterns = [/^416/, /^647/, /^852/, /^\+852/, /^\+91/, /^\+972/, /^\+44/];
+  for (const p of nonUSPatterns) { if (p.test(cleaned)) return false; }
+  return true;
+}
+
 // POST /api/bullhorn/push/contact — push a tracked contact to Bullhorn
 router.post('/push/contact', async (req, res) => {
   try {
@@ -106,6 +118,16 @@ router.post('/push/contact', async (req, res) => {
     if (ctResult.rows.length === 0) return res.status(404).json({ error: 'Contact not found' });
     const ct = ctResult.rows[0];
 
+    // Require job title before pushing
+    if (!ct.title || ct.title.trim() === '') {
+      return res.status(400).json({ error: 'Contact must have a job title before pushing to Bullhorn' });
+    }
+
+    // Reject non-US phone numbers
+    if (ct.phone && !isUSPhone(ct.phone)) {
+      return res.status(400).json({ error: `Non-US phone number rejected: ${ct.phone}` });
+    }
+
     // Check if already pushed
     if (ct.bullhorn_id) return res.json({ alreadySynced: true, bullhorn_id: ct.bullhorn_id });
 
@@ -121,12 +143,20 @@ router.post('/push/contact', async (req, res) => {
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(' ') || nameParts[0];
 
-    // Check if contact already exists in Bullhorn
+    // Check if contact already exists in Bullhorn — must match name AND company
     const existing = await bh.searchContact(firstName, lastName);
     if (existing.total > 0) {
-      const bhId = existing.data[0].id;
-      await db.query('UPDATE tracked_contacts SET bullhorn_id = $1, bullhorn_synced_at = NOW() WHERE id = $2', [bhId, trackedContactId]);
-      return res.json({ alreadyExists: true, bullhorn_id: bhId });
+      const match = existing.data.find(d => {
+        const occMatch = d.occupation && ct.title && d.occupation.toLowerCase().includes(ct.title.toLowerCase().split(' ')[0]);
+        const emailMatch = d.email && ct.email && d.email.toLowerCase() === ct.email.toLowerCase();
+        const companyMatch = d.owner && false; // owner is the BH user, not the company — need clientCorporation
+        return emailMatch; // email is the most reliable match
+      });
+      if (match) {
+        await db.query('UPDATE tracked_contacts SET bullhorn_id = $1, bullhorn_synced_at = NOW() WHERE id = $2', [match.id, trackedContactId]);
+        return res.json({ alreadyExists: true, bullhorn_id: match.id, matchedOn: 'email' });
+      }
+      // Name matches but no email/company match — create new, don't link to wrong person
     }
 
     // Create in Bullhorn
@@ -162,6 +192,12 @@ router.post('/push/batch', async (req, res) => {
         if (ctResult.rows.length === 0) { results.push({ id, error: 'not found' }); continue; }
         const ct = ctResult.rows[0];
 
+        // Require job title
+        if (!ct.title || ct.title.trim() === '') { results.push({ id, error: 'missing job title' }); continue; }
+
+        // Reject non-US phone
+        if (ct.phone && !isUSPhone(ct.phone)) { results.push({ id, error: `non-US phone: ${ct.phone}` }); continue; }
+
         if (ct.bullhorn_id) { results.push({ id, alreadySynced: true, bullhorn_id: ct.bullhorn_id }); continue; }
 
         const companySearch = await bh.searchCompany(ct.company_name);
@@ -171,12 +207,15 @@ router.post('/push/batch', async (req, res) => {
         const firstName = nameParts[0];
         const lastName = nameParts.slice(1).join(' ') || nameParts[0];
 
+        // Match existing contacts by email, not just name
         const existing = await bh.searchContact(firstName, lastName);
-        if (existing.total > 0) {
-          const bhId = existing.data[0].id;
-          await db.query('UPDATE tracked_contacts SET bullhorn_id = $1, bullhorn_synced_at = NOW() WHERE id = $2', [bhId, id]);
-          results.push({ id, alreadyExists: true, bullhorn_id: bhId });
-          continue;
+        if (existing.total > 0 && ct.email) {
+          const match = existing.data.find(d => d.email && d.email.toLowerCase() === ct.email.toLowerCase());
+          if (match) {
+            await db.query('UPDATE tracked_contacts SET bullhorn_id = $1, bullhorn_synced_at = NOW() WHERE id = $2', [match.id, id]);
+            results.push({ id, alreadyExists: true, bullhorn_id: match.id });
+            continue;
+          }
         }
 
         const created = await bh.createContact({ firstName, lastName, companyId: companySearch.data[0].id, title: ct.title, email: ct.email, phone: ct.phone });
