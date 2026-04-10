@@ -213,7 +213,7 @@ router.patch('/contacts/:contactId', async (req, res) => {
     const fields = [];
     const values = [];
     let i = 1;
-    for (const key of ['name', 'title', 'linkedin_url', 'email', 'phone', 'outreach_step', 'notes']) {
+    for (const key of ['name', 'title', 'linkedin_url', 'email', 'phone', 'outreach_step', 'notes', 'bullhorn_id']) {
       if (req.body[key] !== undefined) {
         fields.push(`${key} = $${i}`);
         values.push(req.body[key]);
