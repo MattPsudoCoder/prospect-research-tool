@@ -9,6 +9,7 @@ const contactsCache = {};
 /* ── Filter controls ────────────────────────────────────────── */
 const trackerSearch = document.getElementById('trackerSearch');
 const trackerStepFilter = document.getElementById('trackerStepFilter');
+const trackerSignalFilter = document.getElementById('trackerSignalFilter');
 const trackerResultCount = document.getElementById('trackerResultCount');
 
 // Check what features are available
@@ -38,6 +39,7 @@ if (trackerStepFilter) {
 function applyFilters() {
   const search = (trackerSearch ? trackerSearch.value : '').toLowerCase().trim();
   const stepVal = trackerStepFilter ? trackerStepFilter.value : '';
+  const signalVal = trackerSignalFilter ? trackerSignalFilter.value : '';
   let visible = 0;
 
   for (const c of allCompanies) {
@@ -48,6 +50,9 @@ function applyFilters() {
 
     // Name search
     if (search && !c.name.toLowerCase().includes(search)) show = false;
+
+    // Signal strength filter
+    if (show && signalVal && c.signal_strength !== signalVal) show = false;
 
     // Step filter — company must have at least one contact at this step
     if (show && stepVal !== '') {
@@ -64,7 +69,7 @@ function applyFilters() {
   }
 
   if (trackerResultCount) {
-    if (search || stepVal !== '') {
+    if (search || stepVal !== '' || signalVal) {
       trackerResultCount.textContent = `${visible} of ${allCompanies.length} companies`;
     } else {
       trackerResultCount.textContent = `${allCompanies.length} companies`;
@@ -742,11 +747,91 @@ document.addEventListener('click', (e) => {
 
 /* ── Filter event listeners ───────────────────────────────────── */
 if (trackerStepFilter) trackerStepFilter.addEventListener('change', applyFilters);
+if (trackerSignalFilter) trackerSignalFilter.addEventListener('change', applyFilters);
 if (trackerSearch) {
   let searchTimeout;
   trackerSearch.addEventListener('input', () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(applyFilters, 250);
+  });
+}
+
+/* ── ATS Scan ─────────────────────────────────────────────────── */
+const btnScanATS = document.getElementById('btnScanATS');
+const atsScanResults = document.getElementById('atsScanResults');
+
+if (btnScanATS) {
+  btnScanATS.addEventListener('click', async () => {
+    btnScanATS.disabled = true;
+    btnScanATS.textContent = 'Scanning...';
+    atsScanResults.style.display = 'block';
+    atsScanResults.innerHTML = '<p style="padding:16px;color:var(--text-muted);">Scanning ATS career pages for new roles... This may take a minute.</p>';
+
+    try {
+      const res = await fetch('/api/tracker/ats-scan');
+      const data = await res.json();
+
+      if (data.error) {
+        atsScanResults.innerHTML = `<p style="padding:16px;color:#e74c3c;">${esc(data.error)}</p>`;
+        return;
+      }
+
+      const { results, scanned, skipped } = data;
+      const changes = results.filter(r => r.newRoles && r.newRoles.length > 0);
+      const errors = results.filter(r => r.error);
+      const noChange = results.filter(r => !r.error && (!r.newRoles || r.newRoles.length === 0));
+
+      let html = `<div style="padding:16px;">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">`;
+      html += `<h3 style="margin:0;">ATS Scan Results</h3>`;
+      html += `<button class="btn btn-secondary btn-sm" id="closeScanResults">Close</button>`;
+      html += `</div>`;
+      html += `<p style="color:var(--text-muted);margin-bottom:16px;">Scanned ${scanned} companies with known ATS. ${skipped} skipped (no ATS slug). ${changes.length} with new roles found.</p>`;
+
+      if (changes.length > 0) {
+        html += `<h4 style="color:#27ae60;margin-bottom:8px;">Companies with New Roles</h4>`;
+        for (const r of changes) {
+          html += `<div style="background:var(--bg-card);border:2px solid #27ae60;border-radius:8px;padding:12px;margin-bottom:10px;">`;
+          html += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
+          html += `<strong>${esc(r.company)}</strong>`;
+          html += `<span class="badge badge-high">${r.newRoles.length} new</span>`;
+          html += `</div>`;
+          html += `<div style="margin-top:6px;font-size:13px;">`;
+          r.newRoles.forEach(role => {
+            html += `<div style="padding:2px 0;">• ${esc(role.title)}${role.location ? ` <span style="color:var(--text-muted);">(${esc(role.location)})</span>` : ''}</div>`;
+          });
+          html += `</div>`;
+          html += `<div style="margin-top:6px;font-size:12px;color:var(--text-muted);">Total current roles: ${r.currentTotal} | Previously tracked: ${r.previousCount}</div>`;
+          html += `</div>`;
+        }
+      }
+
+      if (noChange.length > 0) {
+        html += `<h4 style="margin-top:16px;margin-bottom:8px;color:var(--text-muted);">No Changes (${noChange.length})</h4>`;
+        html += `<div style="font-size:13px;color:var(--text-muted);">`;
+        noChange.forEach(r => { html += `${esc(r.company)} (${r.currentTotal} roles), `; });
+        html += `</div>`;
+      }
+
+      if (errors.length > 0) {
+        html += `<h4 style="margin-top:16px;margin-bottom:8px;color:#e67e22;">Errors (${errors.length})</h4>`;
+        html += `<div style="font-size:13px;color:#e67e22;">`;
+        errors.forEach(r => { html += `${esc(r.company)}: ${esc(r.error)}<br>`; });
+        html += `</div>`;
+      }
+
+      html += `</div>`;
+      atsScanResults.innerHTML = html;
+
+      document.getElementById('closeScanResults').addEventListener('click', () => {
+        atsScanResults.style.display = 'none';
+      });
+    } catch (err) {
+      atsScanResults.innerHTML = `<p style="padding:16px;color:#e74c3c;">Scan failed: ${esc(err.message)}</p>`;
+    } finally {
+      btnScanATS.disabled = false;
+      btnScanATS.textContent = 'Scan ATS for New Roles';
+    }
   });
 }
 

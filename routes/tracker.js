@@ -30,6 +30,114 @@ function isValidLinkedIn(url) {
   return url.includes('linkedin.com');
 }
 
+// ATS Scan — check all tracked companies with known ATS for new roles
+const ats = require('../services/ats');
+
+router.get('/ats-scan', async (req, res) => {
+  try {
+    const { rows: companies } = await db.query(
+      "SELECT * FROM tracked_companies WHERE ats_detected IS NOT NULL AND ats_detected != '' AND ats_detected != 'None' AND signal_strength != 'Low' ORDER BY name"
+    );
+
+    const results = [];
+    let scanned = 0;
+    let skipped = 0;
+
+    for (const company of companies) {
+      const atsType = (company.ats_detected || '').toLowerCase();
+
+      // Only scan Greenhouse and Lever (we have APIs for these)
+      const isGreenhouse = atsType.includes('greenhouse');
+      const isLever = atsType.includes('lever');
+
+      if (!isGreenhouse && !isLever) {
+        skipped++;
+        continue;
+      }
+
+      scanned++;
+
+      try {
+        const slug = ats.slugify(company.name);
+        let currentRoles = [];
+        let totalCount = 0;
+
+        if (isGreenhouse) {
+          const ghRes = await fetch(`https://api.greenhouse.io/v1/boards/${slug}/jobs`, { signal: AbortSignal.timeout(8000) });
+          if (ghRes.ok) {
+            const data = await ghRes.json();
+            currentRoles = (data.jobs || []).map(j => ({
+              title: j.title,
+              location: j.location?.name || '',
+              url: j.absolute_url || '',
+            }));
+            totalCount = currentRoles.length;
+          }
+        } else if (isLever) {
+          const lvRes = await fetch(`https://api.lever.co/v0/postings/${slug}`, { signal: AbortSignal.timeout(8000) });
+          if (lvRes.ok) {
+            const data = await lvRes.json();
+            if (Array.isArray(data)) {
+              currentRoles = data.map(j => ({
+                title: j.text,
+                location: j.categories?.location || '',
+                url: j.hostedUrl || '',
+              }));
+              totalCount = currentRoles.length;
+            }
+          }
+        }
+
+        // Parse previous role count from roles_found text
+        const prevText = company.roles_found || '';
+        const countMatch = prevText.match(/(\d+)\s*(?:eng|engineering|total)\s*roles?/i);
+        const previousCount = countMatch ? parseInt(countMatch[1]) : 0;
+
+        // Filter to engineering roles only
+        const roleKeywords = ats.buildRoleKeywords(null);
+        const engRoles = currentRoles.filter(r => ats.isRelevantRole(r.title, roleKeywords));
+
+        // Find truly new roles by comparing titles against what we had
+        const prevTitles = new Set(
+          (prevText.match(/(?:Sr|Senior|Staff|Principal|Lead|Junior|Mid|Dir|Director|Manager|VP|Engineer|SWE|EM)\s+[^,.\n]*/gi) || [])
+            .map(t => t.toLowerCase().trim())
+        );
+
+        const newRoles = engRoles.filter(r => {
+          const lower = r.title.toLowerCase().trim();
+          // If we had 0 previous count, all roles are "new" on first scan
+          if (previousCount === 0 && prevText.length < 10) return true;
+          // Otherwise check if this title was already mentioned
+          return !prevTitles.has(lower) && ![...prevTitles].some(pt => lower.includes(pt) || pt.includes(lower));
+        });
+
+        results.push({
+          companyId: company.id,
+          company: company.name,
+          atsType: isGreenhouse ? 'Greenhouse' : 'Lever',
+          currentTotal: totalCount,
+          currentEng: engRoles.length,
+          previousCount,
+          newRoles: totalCount > previousCount ? engRoles.slice(0, 15).map(r => ({ title: r.title, location: r.location })) : [],
+        });
+
+        // Small delay between API calls to be polite
+        await new Promise(r => setTimeout(r, 300));
+      } catch (err) {
+        results.push({
+          companyId: company.id,
+          company: company.name,
+          error: err.message || 'Failed to fetch',
+        });
+      }
+    }
+
+    res.json({ results, scanned, skipped });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET all tracked companies
 router.get('/', async (req, res) => {
   try {

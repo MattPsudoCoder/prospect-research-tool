@@ -20,9 +20,15 @@
 
   <main class="content">
     <header>
-      <h1>Tracker</h1>
-      <p class="subtitle">Companies you're actively pursuing.</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h1>Tracker</h1>
+          <p class="subtitle">Companies you're actively pursuing.</p>
+        </div>
+        <button id="btnScanATS" class="btn btn-primary" style="white-space:nowrap;">Scan ATS for New Roles</button>
+      </div>
     </header>
+    <div id="atsScanResults" style="display:none;" class="card"></div>
 
     <div id="bullhornBar" class="bullhorn-bar">
       <div id="bhStatus"></div>
@@ -36,6 +42,15 @@
         <div class="form-group filter-group filter-search">
           <label for="trackerSearch">Search</label>
           <input type="text" id="trackerSearch" placeholder="Company name...">
+        </div>
+        <div class="form-group filter-group">
+          <label for="trackerSignalFilter">Signal</label>
+          <select id="trackerSignalFilter">
+            <option value="">All Signals</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
         </div>
         <div class="form-group filter-group">
           <label for="trackerStepFilter">Step</label>
