@@ -58,12 +58,19 @@ router.get('/ats-scan', async (req, res) => {
       scanned++;
 
       try {
-        const slug = ats.slugify(company.name);
+        // Use ats_slug override if set, otherwise slugify the company name
+        const slug = (company.ats_slug && company.ats_slug.trim()) || ats.slugify(company.name);
         let currentRoles = [];
         let totalCount = 0;
 
         if (isGreenhouse) {
-          const ghRes = await fetch(`https://api.greenhouse.io/v1/boards/${slug}/jobs`, { signal: AbortSignal.timeout(8000) });
+          // Try primary slug first, then try with redirect URL pattern
+          let ghRes = await fetch(`https://api.greenhouse.io/v1/boards/${slug}/jobs`, { signal: AbortSignal.timeout(8000) });
+          if (!ghRes.ok) {
+            // Some companies use job-boards.greenhouse.io — try fetching from there isn't possible via API
+            // but the v1 API should work for most. 404 means wrong slug.
+            ghRes = { ok: false };
+          }
           if (ghRes.ok) {
             const data = await ghRes.json();
             currentRoles = (data.jobs || []).map(j => ({
@@ -88,37 +95,44 @@ router.get('/ats-scan', async (req, res) => {
           }
         }
 
-        // Parse previous role count from roles_found text
-        const prevText = company.roles_found || '';
-        const countMatch = prevText.match(/(\d+)\s*(?:eng|engineering|total)\s*roles?/i);
-        const previousCount = countMatch ? parseInt(countMatch[1]) : 0;
-
         // Filter to engineering roles only
         const roleKeywords = ats.buildRoleKeywords(null);
         const engRoles = currentRoles.filter(r => ats.isRelevantRole(r.title, roleKeywords));
 
-        // Find truly new roles by comparing titles against what we had
+        // Compare against previous snapshot if available, otherwise parse roles_found text
+        const prevSnapshot = company.ats_role_snapshot || [];
         const prevTitles = new Set(
-          (prevText.match(/(?:Sr|Senior|Staff|Principal|Lead|Junior|Mid|Dir|Director|Manager|VP|Engineer|SWE|EM)\s+[^,.\n]*/gi) || [])
-            .map(t => t.toLowerCase().trim())
+          Array.isArray(prevSnapshot) && prevSnapshot.length > 0
+            ? prevSnapshot.map(r => r.title.toLowerCase().trim())
+            : (company.roles_found || '').match(/(?:Sr|Senior|Staff|Principal|Lead|Junior|Mid|Dir|Director|Manager|VP|Engineer|SWE|EM)\s+[^,.\n]*/gi)?.map(t => t.toLowerCase().trim()) || []
         );
+        const previousCount = prevSnapshot.length > 0 ? prevSnapshot.length : (() => {
+          const m = (company.roles_found || '').match(/(\d+)\s*(?:eng|engineering|total)\s*roles?/i);
+          return m ? parseInt(m[1]) : 0;
+        })();
 
+        // Find genuinely new roles not in previous snapshot
         const newRoles = engRoles.filter(r => {
           const lower = r.title.toLowerCase().trim();
-          // If we had 0 previous count, all roles are "new" on first scan
-          if (previousCount === 0 && prevText.length < 10) return true;
-          // Otherwise check if this title was already mentioned
+          if (previousCount === 0 && (company.roles_found || '').length < 10) return true;
           return !prevTitles.has(lower) && ![...prevTitles].some(pt => lower.includes(pt) || pt.includes(lower));
         });
+
+        // Save snapshot and timestamp
+        await db.query(
+          'UPDATE tracked_companies SET ats_last_scanned = NOW(), ats_role_snapshot = $1 WHERE id = $2',
+          [JSON.stringify(engRoles.map(r => ({ title: r.title, location: r.location }))), company.id]
+        );
 
         results.push({
           companyId: company.id,
           company: company.name,
+          slug,
           atsType: isGreenhouse ? 'Greenhouse' : 'Lever',
           currentTotal: totalCount,
           currentEng: engRoles.length,
           previousCount,
-          newRoles: totalCount > previousCount ? engRoles.slice(0, 15).map(r => ({ title: r.title, location: r.location })) : [],
+          newRoles: newRoles.length > 0 ? newRoles.slice(0, 15).map(r => ({ title: r.title, location: r.location })) : [],
         });
 
         // Small delay between API calls to be polite
@@ -198,7 +212,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(400).json({ error: `signal_strength must be one of: ${VALID_SIGNAL_STRENGTHS.join(', ')}` });
     }
 
-    const fields = ['ats_detected', 'roles_found', 'hiring_signals', 'keywords', 'signal_strength', 'status', 'notes'];
+    const fields = ['ats_detected', 'ats_slug', 'roles_found', 'hiring_signals', 'keywords', 'signal_strength', 'status', 'notes'];
     const updates = [];
     const values = [];
     let idx = 1;

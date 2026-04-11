@@ -104,6 +104,12 @@ CREATE TABLE IF NOT EXISTS activity_log (
 ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS bullhorn_id INTEGER DEFAULT NULL;
 ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS bullhorn_synced_at TIMESTAMPTZ DEFAULT NULL;
 
+-- v1.2 ATS slug override for scan feature
+ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_slug TEXT DEFAULT '';
+-- v1.2 last ATS scan timestamp and role snapshot
+ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_last_scanned TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_role_snapshot JSONB DEFAULT NULL;
+
 -- Seed a default ICP row if none exists
 INSERT INTO icp_settings (industry_sector, company_size_min, company_size_max, geography, role_types)
 SELECT 'Technology', 50, 5000, 'United States', 'Software Engineer, Product Manager, Data Scientist'

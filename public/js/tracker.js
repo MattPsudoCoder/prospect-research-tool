@@ -806,11 +806,28 @@ if (btnScanATS) {
         }
       }
 
-      if (noChange.length > 0) {
-        html += `<h4 style="margin-top:16px;margin-bottom:8px;color:var(--text-muted);">No Changes (${noChange.length})</h4>`;
+      // Split no-change into "found roles" and "0 results (likely wrong slug)"
+      const noChangeOk = noChange.filter(r => r.currentTotal > 0);
+      const noChangeZero = noChange.filter(r => r.currentTotal === 0);
+
+      if (noChangeOk.length > 0) {
+        html += `<h4 style="margin-top:16px;margin-bottom:8px;color:var(--text-muted);">No Changes (${noChangeOk.length})</h4>`;
         html += `<div style="font-size:13px;color:var(--text-muted);">`;
-        noChange.forEach(r => { html += `${esc(r.company)} (${r.currentTotal} roles), `; });
+        noChangeOk.forEach(r => { html += `${esc(r.company)} (${r.currentTotal} roles, slug: ${esc(r.slug)}), `; });
         html += `</div>`;
+      }
+
+      if (noChangeZero.length > 0) {
+        html += `<h4 style="margin-top:16px;margin-bottom:8px;color:#e67e22;">0 Results — Likely Wrong Slug (${noChangeZero.length})</h4>`;
+        html += `<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">These companies returned 0 roles. The ATS slug may not match the company name. Set the correct slug below.</p>`;
+        for (const r of noChangeZero) {
+          html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">`;
+          html += `<strong style="min-width:150px;">${esc(r.company)}</strong>`;
+          html += `<span style="color:var(--text-muted);">slug: ${esc(r.slug)}</span>`;
+          html += `<input type="text" class="slug-input" data-company-id="${r.companyId}" placeholder="correct slug" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;width:160px;">`;
+          html += `<button class="btn btn-primary btn-sm slug-save" data-company-id="${r.companyId}">Save</button>`;
+          html += `</div>`;
+        }
       }
 
       if (errors.length > 0) {
@@ -825,6 +842,23 @@ if (btnScanATS) {
 
       document.getElementById('closeScanResults').addEventListener('click', () => {
         atsScanResults.style.display = 'none';
+      });
+
+      // Slug save buttons
+      atsScanResults.querySelectorAll('.slug-save').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const companyId = btn.dataset.companyId;
+          const input = atsScanResults.querySelector(`.slug-input[data-company-id="${companyId}"]`);
+          const slug = input.value.trim();
+          if (!slug) { alert('Enter a slug'); return; }
+          btn.disabled = true; btn.textContent = 'Saving...';
+          await fetch(`/api/tracker/${companyId}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ats_slug: slug }),
+          });
+          btn.textContent = 'Saved!';
+          btn.style.background = '#27ae60';
+        });
       });
     } catch (err) {
       atsScanResults.innerHTML = `<p style="padding:16px;color:#e74c3c;">Scan failed: ${esc(err.message)}</p>`;
