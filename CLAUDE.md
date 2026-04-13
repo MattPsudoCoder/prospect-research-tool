@@ -101,6 +101,10 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - One specific, relevant detail beats three generic ones
 - Spec-in emails need realistic hypothetical candidate profiles
 
+## MEMORY (synced across machines)
+
+Memory files live in `.claude/memory/` inside this repo so they sync via git to all machines. When reading or writing memory, use `.claude/memory/` (relative to project root), NOT the default `~/.claude/projects/` path. Always commit and push memory changes so the other machine gets them.
+
 ## DETAILED HANDOVER DOCS
 
 For full context beyond what's here, read these files:
