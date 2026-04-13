@@ -22,16 +22,36 @@ function slugify(name) {
  * Falls back to a sensible default set if ICP isn't configured.
  */
 const DEFAULT_ROLE_KEYWORDS = [
-  'software', 'engineer', 'developer', 'frontend', 'front-end', 'front end',
+  'software', 'developer', 'frontend', 'front-end', 'front end',
   'backend', 'back-end', 'back end', 'full stack', 'fullstack', 'full-stack',
   'react', 'node', 'typescript', 'javascript', 'next.js', 'nextjs',
   'mobile', 'ios', 'android', 'flutter', 'react native',
-  'devops', 'sre', 'platform', 'infrastructure', 'cloud',
-  'qa', 'quality', 'sdet', 'test engineer', 'automation engineer',
-  'ui engineer', 'ui developer', 'ux engineer',
-  'data engineer', 'ml engineer', 'machine learning',
-  'engineering manager', 'vp engineering', 'cto', 'tech lead',
-  'architect', 'principal engineer', 'staff engineer',
+  'platform engineer', 'ui engineer', 'ui developer', 'ux engineer',
+  'engineering manager', 'engineering director', 'vp engineering', 'cto', 'tech lead',
+  'principal engineer', 'staff engineer', 'staff software',
+  'golang', 'scala', 'java', 'python', 'kotlin', 'swift',
+];
+
+/**
+ * Titles containing these patterns are excluded even if they match a keyword.
+ * These are roles Signify does NOT recruit for.
+ */
+const EXCLUDED_ROLE_PATTERNS = [
+  'machine learning', 'ml engineer', 'ml scientist', 'ml research',
+  'data scientist', 'data science', 'data analyst', 'analytics engineer',
+  'data engineer', 'business intelligence',
+  'security engineer', 'appsec', 'infosec', 'cybersecurity', 'threat',
+  'application security', 'offensive security', 'cloud security',
+  'sre', 'site reliability', 'devops', 'dev ops',
+  'qa ', 'quality assurance', 'quality engineer', 'sdet', 'test engineer',
+  'technical writer', 'technical writing', 'content engineer',
+  'solutions architect', 'solutions engineer', 'forward deployed',
+  'support engineer', 'customer support', 'customer success',
+  'hardware engineer', 'electrical engineer', 'mechanical engineer',
+  'research engineer', 'research scientist', 'ai researcher',
+  'warehouse', 'operations engineer', 'network engineer',
+  'it engineer', 'systems administrator', 'helpdesk',
+  'gameplay', 'game engineer',
 ];
 
 /**
@@ -56,7 +76,7 @@ function buildRoleKeywords(icp) {
  * Short keywords that must match as whole words to avoid false positives
  * (e.g. "cto" matching "Director", "sre" matching "Treasurer").
  */
-const WHOLE_WORD_KEYWORDS = new Set(['cto', 'sre', 'qa', 'ios', 'go', 'ui', 'ux', 'ml', 'ai', 'sdet']);
+const WHOLE_WORD_KEYWORDS = new Set(['cto', 'ios', 'go', 'ui', 'ux']);
 
 /**
  * Check if a job title is relevant to ICP role types.
@@ -65,6 +85,8 @@ const WHOLE_WORD_KEYWORDS = new Set(['cto', 'sre', 'qa', 'ios', 'go', 'ui', 'ux'
  */
 function isRelevantRole(title, keywords) {
   const lower = title.toLowerCase();
+  // Check exclusions first — these roles are NOT in ICP regardless of keyword match
+  if (EXCLUDED_ROLE_PATTERNS.some(ex => lower.includes(ex))) return false;
   return keywords.some((kw) => {
     if (WHOLE_WORD_KEYWORDS.has(kw)) {
       const re = new RegExp(`\\b${kw}\\b`);
