@@ -556,6 +556,14 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   align-items: center;
   margin-bottom: 12px;
 }
+.company-name-link {
+  color: inherit;
+  text-decoration: none;
+}
+.company-name-link:hover {
+  text-decoration: underline;
+  color: var(--accent);
+}
 .contacts-header h4 {
   font-size: 14px;
   font-weight: 600;

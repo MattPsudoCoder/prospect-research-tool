@@ -176,7 +176,7 @@ async function loadTracker() {
       card.id = `company-${c.id}`;
       card.innerHTML = `
         <div class="result-card-header">
-          <h3><span class="star-toggle ${c.favorite ? 'starred' : ''}" id="star-${c.id}" data-company-id="${c.id}">${c.favorite ? '\u2605' : '\u2606'}</span>${esc(c.name)}</h3>
+          <h3><span class="star-toggle ${c.favorite ? 'starred' : ''}" id="star-${c.id}" data-company-id="${c.id}">${c.favorite ? '\u2605' : '\u2606'}</span><a href="https://www.google.com/search?q=${encodeURIComponent(c.name + ' company')}" target="_blank" rel="noopener" class="company-name-link">${esc(c.name)}</a></h3>
           <div class="result-card-badges">
             ${signalBadge(c.signal_strength)}
             ${claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-all" data-company-id="${c.id}" style="background:#9b59b6">Generate All Scripts</button>` : ''}
