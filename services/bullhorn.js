@@ -193,7 +193,7 @@ function analyseNotes(notes) {
 async function createContact({ firstName, lastName, companyId, title, email, phone }) {
   const body = {
     firstName, lastName, name: `${firstName} ${lastName}`,
-    title: title || '', email: email || '', phone: phone || '',
+    occupation: title || '', email: email || '', phone: phone || '',
     clientCorporation: { id: companyId },
     status: 'New Lead', type: 'Unknown', source: 'Other',
   };
