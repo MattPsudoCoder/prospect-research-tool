@@ -288,10 +288,10 @@ router.post('/:companyId/contacts', async (req, res) => {
     );
     const contact = result.rows[0];
 
-    // Auto-push to Bullhorn if connected
+    // Auto-push to Bullhorn if connected — only if contact has email or phone
     try {
       const bh = require('../services/bullhorn');
-      if (bh.isConfigured().connected) {
+      if (bh.isConfigured().connected && (email || phone)) {
         const companyResult = await db.query('SELECT name FROM tracked_companies WHERE id = $1', [req.params.companyId]);
         const companyName = companyResult.rows[0]?.name;
         if (companyName) {
@@ -521,8 +521,10 @@ router.post('/backfill-bullhorn', async (req, res) => {
        ORDER BY tco.name, tc.name`
     );
 
-    let pushed = 0, linked = 0, skipped = 0, errors = 0;
+    let pushed = 0, linked = 0, skipped = 0, errors = 0, noContact = 0;
     for (const ct of contacts.rows) {
+      // Skip contacts without email AND without phone — don't push empty contacts to BH
+      if (!ct.email && !ct.phone) { noContact++; continue; }
       try {
         const nameParts = ct.name.trim().split(/\s+/);
         const firstName = nameParts[0];
@@ -549,7 +551,43 @@ router.post('/backfill-bullhorn', async (req, res) => {
       }
     }
 
-    res.json({ total: contacts.rows.length, pushed, linked, skipped, errors });
+    res.json({ total: contacts.rows.length, pushed, linked, skipped, noContact, errors });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST — bulk-fix: update occupation (job title) on all BH contacts that were pushed with wrong field
+router.post('/fix-bullhorn-titles', async (req, res) => {
+  try {
+    const bh = require('../services/bullhorn');
+    if (!bh.isConfigured().connected) return res.status(400).json({ error: 'Bullhorn not connected' });
+
+    const contacts = await db.query(
+      `SELECT tc.*, tco.name as company_name
+       FROM tracked_contacts tc
+       JOIN tracked_companies tco ON tc.tracked_company_id = tco.id
+       WHERE tc.bullhorn_id IS NOT NULL AND tc.title IS NOT NULL AND tc.title != ''
+       ORDER BY tco.name, tc.name`
+    );
+
+    let updated = 0, errors = 0;
+    for (const ct of contacts.rows) {
+      try {
+        await bh.bhFetch(`entity/ClientContact/${ct.bullhorn_id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ occupation: ct.title }),
+        });
+        updated++;
+        await new Promise(r => setTimeout(r, 200));
+      } catch (err) {
+        errors++;
+        console.log(`Title fix error for ${ct.name} (BH ${ct.bullhorn_id}):`, err.message);
+      }
+    }
+
+    res.json({ total: contacts.rows.length, updated, errors });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

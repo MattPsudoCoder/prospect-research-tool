@@ -37,6 +37,9 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - Cloned outreach scripts with name-swap instead of generating per contact — every contact needs individually crafted scripts
 - Pushed companies as "Dropped" but POST route didn't accept status field — status was silently ignored, companies showed as "New" with zero contacts
 - Didn't run post-pipeline verification checks — contacts went unsynced to Bullhorn, dropped companies appeared as active
+- Mapped job title to Bullhorn's `title` field (salutation) instead of `occupation` — every contact pushed had no visible job title in CRM
+- Pushed contacts to Bullhorn without email or phone number — CRM filled with unreachable contacts. Never push to BH unless contact has at least email OR phone.
+- Parroted the hiring manager's own LinkedIn profile back at them in spec-in emails — candidate profiles must be tailored to the ROLE and its PROBLEMS, not mirror the manager's background
 
 ## SERVER-SIDE GUARDRAILS (already enforced in routes/tracker.js)
 
@@ -91,7 +94,8 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - 60-day gate: Companies with ACTIVE ENGAGEMENT in last 60 days are auto-discarded.
 - **Active engagement means ONLY:** new job/vacancy added, new placement, meetings logged, connected calls. These prove someone is actively working the account.
 - **NOT active engagement (do NOT gate on these):** LinkedIn messages, emails sent, attempted calls, mailshots, BD messages, notes without meetings/calls. Outreach alone does not grant client ownership.
-- Contacts auto-push to BH when added to tracker (if BH is connected).
+- Contacts auto-push to BH when added to tracker (if BH is connected) — **ONLY if contact has email or phone**. Never push empty contacts to CRM.
+- Job title maps to `occupation` field on ClientContact, NOT `title` (which is salutation Mr/Mrs/Dr).
 - End-of-day sync: "Sync Day" button pushes all unsynced activities as BH Notes with correct action types.
 - Each outreach step maps to a BH action type (BD Message, Reverse Market, Attempted BD Call).
 

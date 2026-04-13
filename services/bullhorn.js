@@ -234,6 +234,6 @@ async function pingToken() {
 
 module.exports = {
   setManualToken, clearManualToken, getManualToken, isConfigured, getCredentials,
-  searchCompany, searchContact, checkCompany, createContact, addNote,
+  searchCompany, searchContact, checkCompany, createContact, addNote, bhFetch,
   analyseNotes, pingToken, NEGATIVE_SIGNAL_PHRASES, IGNORED_NOTE_ACTIONS,
 };
