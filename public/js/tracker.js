@@ -189,9 +189,9 @@ async function loadTracker() {
         <div class="result-card-meta">
           <span><strong>ATS:</strong> ${c.ats_detected && c.ats_detected !== 'None' ? esc(c.ats_detected) : '—'}</span>
           <span><strong>Roles:</strong> ${formatRolesInline(c.roles_found)}</span>
-          ${c.hiring_signals ? `<span><strong>Signals:</strong> ${esc(c.hiring_signals)}</span>` : ''}
           <span class="tracker-date"><strong>Added:</strong> ${formatCentralDate(c.created_at)}</span>
         </div>
+        ${c.hiring_signals ? `<div class="signal-chips">${formatSignalChips(c.hiring_signals)}</div>` : ''}
         ${c.keywords ? `<div class="result-card-tags">${c.keywords.split(',').map(k => `<span class="tag">${esc(k.trim())}</span>`).join('')}</div>` : ''}
         <div class="company-notes-section">
           <div class="notes-toggle" data-company-id="${c.id}" style="cursor:pointer;user-select:none">
@@ -311,6 +311,7 @@ async function loadContacts(companyId) {
             ${STEPS.map(s => `<option value="${s.id}" ${s.id === ct.outreach_step ? 'selected' : ''}>${s.label}</option>`).join('')}
           </select>
           ${step.id > 0 ? `<span class="step-tip"><span class="step-channel">${esc(step.channel)}</span> ${esc(step.tip)}</span>` : ''}
+          ${ct.step_updated_at ? `<span class="step-date">Last: ${formatCentralDate(ct.step_updated_at)}</span>` : ''}
         </div>
         <div class="contact-actions">
           ${stepActionButton(ct, step)}
@@ -746,6 +747,21 @@ function showEditContactForm(ct, companyId) {
 }
 
 /* ── Helpers ──────────────────────────────────────────────────── */
+
+function formatSignalChips(signalsStr) {
+  if (!signalsStr) return '';
+  const parts = signalsStr.split(/\.\s*/).filter(s => s.trim());
+  return parts.map(part => {
+    const p = part.trim();
+    let cls = 'signal-chip';
+    if (/\$\d/.test(p) && /fund|rais|series|revenue/i.test(p)) cls += ' signal-funding';
+    else if (/employ|headcount/i.test(p) || /^\d+\s*employ/i.test(p)) cls += ' signal-size';
+    else if (/growth|yoy|bookings/i.test(p)) cls += ' signal-growth';
+    else if (/hire|confirmed|engineer/i.test(p)) cls += ' signal-hire';
+    else if (/[A-Z]{2}\b/.test(p) && p.length < 60) cls += ' signal-location';
+    return `<span class="${cls}">${esc(p)}</span>`;
+  }).join('');
+}
 
 function formatRolesInline(rolesStr) {
   if (!rolesStr) return '—';

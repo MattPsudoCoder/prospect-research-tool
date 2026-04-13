@@ -40,8 +40,28 @@ async function initDB() {
   }
 }
 
+// Daily ATS scan — runs on startup + every 24 hours
+async function runDailyAtsScan() {
+  try {
+    const http = require('http');
+    http.get(`http://localhost:${PORT}/api/tracker/ats-scan`, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(data);
+          console.log(`[ATS Auto-Scan] Scanned ${result.scanned} companies, ${result.newRoles} new roles found`);
+        } catch { console.log('[ATS Auto-Scan] Complete'); }
+      });
+    }).on('error', () => { /* server not ready yet, skip */ });
+  } catch { /* ignore */ }
+}
+
 initDB().then(() => {
   app.listen(PORT, () => {
     console.log(`Prospect Research Tool running on http://localhost:${PORT}`);
+    // Run first ATS scan 30 seconds after startup, then every 24 hours
+    setTimeout(runDailyAtsScan, 30000);
+    setInterval(runDailyAtsScan, 24 * 60 * 60 * 1000);
   });
 });

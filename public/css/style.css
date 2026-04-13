@@ -585,6 +585,32 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   font-weight: 600;
   margin: 0;
 }
+.step-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+}
+.signal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.signal-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.signal-funding { border-color: #27ae60; color: #27ae60; }
+.signal-size { border-color: #3498db; color: #3498db; }
+.signal-growth { border-color: #f39c12; color: #f39c12; }
+.signal-hire { border-color: #9b59b6; color: #9b59b6; }
+.signal-location { border-color: var(--text-muted); }
 .company-notes-section {
   margin: 8px 0;
 }
