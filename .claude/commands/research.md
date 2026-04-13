@@ -107,7 +107,13 @@ Run these ZoomInfo `search_contacts` queries. All with:
 - `country` = "United States"
 - `pageSize` = 25
 
-**CRITICAL: ALL contact searches must include `country` = "United States".** Do not add contacts based outside the US — check phone country codes (+91 India, +972 Israel, +44 UK etc.) as a secondary filter. Many Israeli/Indian-founded companies have engineering leadership overseas that is useless for US recruitment outreach.
+**CRITICAL: ALL contact searches must include `country` = "United States".** Do not add contacts based outside the US.
+
+**NON-US CONTACT REJECTION (hard rule — no exceptions):**
+- If a contact's phone number has a non-US country code (+972 Israel, +91 India, +44 UK, +381 Serbia, +7 Russia, etc.) → **DELETE the contact entirely**. Do not strip the phone and keep them. A non-US phone number is proof they are not US-based.
+- If a contact's name + company context strongly suggests they are based overseas (e.g., Serbian/Israeli names at a company known to have offices in those countries, and no US phone number to confirm US location) → **do not add them**. When in doubt, skip.
+- ZoomInfo's `country = "United States"` filter catches most cases, but some overseas contacts slip through because their company HQ is in the US. The phone number is the ground truth.
+- Many Israeli/Indian-founded companies (Incode, Tulip, etc.) have engineering leadership overseas that is useless for US recruitment outreach. Be extra vigilant with these companies.
 
 **Rate limiting: stagger searches with 2-3 second delays between each. On 429 responses, back off 30 seconds and retry up to 3 times. Max 3 concurrent ZoomInfo requests at any time.**
 
@@ -269,6 +275,9 @@ If ZoomInfo returns nothing, broaden with `jobTitle` containing "engineering", "
 
 Use ZoomInfo `enrich_contacts` to get verified business email and LinkedIn URL. This consumes Bulk Credits (1 per contact). As of April 2026, Matthew has 1,000 bulk credits/month — auto-enrich without asking. If remaining credits drop below 100, flag it.
 
+**POST-ENRICHMENT US VERIFICATION (mandatory before adding to tracker):**
+After enrichment, check every contact's phone number. If the returned phone has a non-US country code → **reject the contact entirely, do not add to tracker**. Do not strip the phone and add them anyway — a non-US phone means they are not US-based, period. This is the final gate before contacts enter the system.
+
 ### Step 8: Bullhorn Contact Check
 
 If Bullhorn is connected:
@@ -332,7 +341,7 @@ curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracke
 - **Contact lookup order matches company size** — CTO at startups, Directors at larger orgs
 - **Rate limit ZoomInfo** — stagger calls, back off on 429s, max 3 concurrent
 - **Don't guess** — only add contacts ZoomInfo actually returns with verified data
-- **US only** — skip any company or contact outside the United States
+- **US only — HARD REJECT on non-US phone numbers** — if enrichment returns a non-US phone code (+972, +91, +381, +7, +44, etc.), delete the contact entirely. Do NOT strip the phone and keep them. A non-US phone = not US-based = useless for US recruitment. Also reject contacts whose name + company context strongly indicates overseas location even without a phone number.
 - **No consulting/staffing/agencies** — hard exclude
 - **Disclose API credit costs** before running enrichment
 - **Always push changes** — git push after any commits, don't ask

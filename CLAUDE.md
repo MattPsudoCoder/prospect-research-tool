@@ -32,6 +32,7 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - Enriched contacts AFTER pushing — should enrich first, then push with full data
 - Backfilled data instead of doing it right the first time — created double the work
 - Said "verified" without actually testing on the live app
+- Stripped non-US phone numbers and added contacts anyway — a non-US phone means they're overseas, reject them entirely
 
 ## SERVER-SIDE GUARDRAILS (already enforced in routes/tracker.js)
 
