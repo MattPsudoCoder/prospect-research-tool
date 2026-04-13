@@ -335,7 +335,7 @@ router.patch('/contacts/:contactId', async (req, res) => {
     const fields = [];
     const values = [];
     let i = 1;
-    for (const key of ['name', 'title', 'linkedin_url', 'email', 'phone', 'outreach_step', 'notes', 'bullhorn_id']) {
+    for (const key of ['name', 'title', 'linkedin_url', 'email', 'phone', 'outreach_step', 'notes', 'bullhorn_id', 'is_flipped', 'flip_step', 'flip_outcome']) {
       if (req.body[key] !== undefined) {
         fields.push(`${key} = $${i}`);
         values.push(req.body[key]);
@@ -652,6 +652,89 @@ router.post('/contacts/:contactId/advance-step', async (req, res) => {
       `INSERT INTO activity_log (tracked_contact_id, bullhorn_contact_id, action, details)
        VALUES ($1, $2, $3, $4)`,
       [contactId, contact.bullhorn_id || null, bh_action || action_taken || `Advanced to step ${step}`, req.body.details || '']
+    );
+
+    res.json(contact);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- FLIPS ---
+
+// GET all flipped contacts with company data
+router.get('/flips', async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT tc.*, tco.name as company_name, tco.hiring_signals, tco.signal_strength,
+              tco.website, tco.company_linkedin, tco.tech_stack
+       FROM tracked_contacts tc
+       JOIN tracked_companies tco ON tc.tracked_company_id = tco.id
+       WHERE tc.is_flipped = TRUE
+       ORDER BY tco.name, tc.name`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST — flip a contact (move to Flips)
+router.post('/contacts/:contactId/flip', async (req, res) => {
+  try {
+    const result = await db.query(
+      'UPDATE tracked_contacts SET is_flipped = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *',
+      [req.params.contactId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Contact not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST — unflip a contact (move back from Flips)
+router.post('/contacts/:contactId/unflip', async (req, res) => {
+  try {
+    const result = await db.query(
+      'UPDATE tracked_contacts SET is_flipped = FALSE, flip_step = 0, flip_outcome = \'\', updated_at = NOW() WHERE id = $1 RETURNING *',
+      [req.params.contactId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Contact not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST — advance flip step with activity logging
+router.post('/contacts/:contactId/advance-flip', async (req, res) => {
+  try {
+    const { flip_step, flip_outcome, bh_action, details } = req.body;
+    const contactId = parseInt(req.params.contactId);
+
+    const updates = ['flip_step = $1', 'updated_at = NOW()'];
+    const values = [flip_step];
+    let idx = 2;
+
+    if (flip_outcome !== undefined) {
+      updates.push(`flip_outcome = $${idx++}`);
+      values.push(flip_outcome);
+    }
+
+    values.push(contactId);
+    const result = await db.query(
+      `UPDATE tracked_contacts SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Contact not found' });
+    const contact = result.rows[0];
+
+    // Log the activity
+    await db.query(
+      `INSERT INTO activity_log (tracked_contact_id, bullhorn_contact_id, action, details)
+       VALUES ($1, $2, $3, $4)`,
+      [contactId, contact.bullhorn_id || null, bh_action || 'BD Message', details || '']
     );
 
     res.json(contact);

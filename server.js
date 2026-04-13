@@ -21,7 +21,7 @@ app.use('/api/tracker', require('./routes/tracker'));
 app.use('/api/bullhorn', require('./routes/bullhorn'));
 
 // SPA fallback — serve index.html for page routes
-const pages = ['/', '/icp', '/history', '/prospects', '/tracker', '/review-later'];
+const pages = ['/', '/icp', '/history', '/prospects', '/tracker', '/flips', '/review-later'];
 pages.forEach((route) => {
   app.get(route, (req, res) => {
     const page = route === '/' ? 'index' : route.slice(1);

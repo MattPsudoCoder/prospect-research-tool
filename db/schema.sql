@@ -117,6 +117,11 @@ ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_role_snapshot JSONB D
 ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS tech_stack TEXT DEFAULT '';
 ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS role_types TEXT DEFAULT '';
 
+-- v1.4 FLIPS — hiring manager flip cadence
+ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS is_flipped BOOLEAN DEFAULT FALSE;
+ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS flip_step INTEGER DEFAULT 0;
+ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS flip_outcome TEXT DEFAULT '';
+
 -- Seed a default ICP row if none exists
 INSERT INTO icp_settings (industry_sector, company_size_min, company_size_max, geography, role_types)
 SELECT 'Technology', 50, 5000, 'United States', 'Software Engineer, Product Manager, Data Scientist'

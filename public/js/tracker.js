@@ -368,37 +368,58 @@ async function loadContacts(companyId) {
     contacts.forEach(ct => {
       const step = STEPS[ct.outreach_step] || STEPS[0];
       const hasTemplates = ct.outreach_templates && Object.keys(ct.outreach_templates).length > 0;
+      const isFlipped = ct.is_flipped;
+      const canFlip = isFlipEligible(ct.title);
       const row = document.createElement('div');
-      row.className = 'contact-row';
+      row.className = 'contact-row' + (isFlipped ? ' contact-flipped' : '');
       row.id = `contact-${ct.id}`;
-      row.innerHTML = `
-        <div class="contact-info">
-          <div class="contact-name-row">
-            <strong>${esc(ct.name)}</strong>
-            ${ct.title ? `<span class="contact-title">${esc(ct.title)}</span>` : ''}
+
+      if (isFlipped) {
+        row.innerHTML = `
+          <div class="contact-info">
+            <div class="contact-name-row">
+              <strong>${esc(ct.name)}</strong>
+              ${ct.title ? `<span class="contact-title">${esc(ct.title)}</span>` : ''}
+            </div>
+            <div class="contact-details">
+              ${ct.linkedin_url ? `<a href="${esc(ct.linkedin_url)}" target="_blank" class="contact-detail-link channel-linkedin">in</a>` : ''}
+              ${ct.email ? `<a href="mailto:${esc(ct.email)}" class="contact-detail-link">${esc(ct.email)}</a>` : ''}
+              ${ct.phone ? `<a href="tel:${esc(ct.phone.replace(/[^+\d]/g, ''))}" class="contact-detail-link contact-phone">${esc(ct.phone)}</a>` : ''}
+            </div>
           </div>
-          <div class="contact-details">
-            ${ct.linkedin_url ? `<a href="${esc(ct.linkedin_url)}" target="_blank" class="contact-detail-link channel-linkedin">in</a>` : ''}
-            ${ct.email ? `<a href="mailto:${esc(ct.email)}" class="contact-detail-link">${esc(ct.email)}</a>` : ''}
-            ${ct.phone ? `<a href="tel:${esc(ct.phone.replace(/[^+\d]/g, ''))}" class="contact-detail-link contact-phone">${esc(ct.phone)}</a>` : ''}
+          <div class="flipped-badge"><span class="flipped-badge-text">MOVED TO FLIPS</span></div>
+        `;
+      } else {
+        row.innerHTML = `
+          <div class="contact-info">
+            <div class="contact-name-row">
+              <strong>${esc(ct.name)}</strong>
+              ${ct.title ? `<span class="contact-title">${esc(ct.title)}</span>` : ''}
+            </div>
+            <div class="contact-details">
+              ${ct.linkedin_url ? `<a href="${esc(ct.linkedin_url)}" target="_blank" class="contact-detail-link channel-linkedin">in</a>` : ''}
+              ${ct.email ? `<a href="mailto:${esc(ct.email)}" class="contact-detail-link">${esc(ct.email)}</a>` : ''}
+              ${ct.phone ? `<a href="tel:${esc(ct.phone.replace(/[^+\d]/g, ''))}" class="contact-detail-link contact-phone">${esc(ct.phone)}</a>` : ''}
+            </div>
           </div>
-        </div>
-        <div class="contact-step">
-          <select class="step-select" data-contact-id="${ct.id}" data-company-id="${companyId}">
-            ${STEPS.map(s => `<option value="${s.id}" ${s.id === ct.outreach_step ? 'selected' : ''}>${s.label}</option>`).join('')}
-          </select>
-          ${step.id > 0 ? `<span class="step-tip"><span class="step-channel">${esc(step.channel)}</span> ${esc(step.tip)}</span>` : ''}
-          ${ct.step_updated_at ? `<span class="step-date">Last: ${formatCentralDate(ct.step_updated_at)}</span>` : ''}
-        </div>
-        <div class="contact-actions">
-          ${stepActionButton(ct, step)}
-          ${hasTemplates ? `<button class="btn-bh btn-bh-note btn-sm btn-show-all-templates" data-contact-id="${ct.id}">View Scripts</button>` : ''}
-          ${!hasTemplates && claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-templates" data-contact-id="${ct.id}" data-company-id="${companyId}" style="background:#9b59b6">Generate Scripts</button>` : ''}
-          ${bhConnected ? bhButton(ct) : ''}
-          <button class="btn btn-secondary btn-sm btn-edit-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">Edit</button>
-          <button class="btn btn-danger btn-sm btn-del-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">X</button>
-        </div>
-      `;
+          <div class="contact-step">
+            <select class="step-select" data-contact-id="${ct.id}" data-company-id="${companyId}">
+              ${STEPS.map(s => `<option value="${s.id}" ${s.id === ct.outreach_step ? 'selected' : ''}>${s.label}</option>`).join('')}
+            </select>
+            ${step.id > 0 ? `<span class="step-tip"><span class="step-channel">${esc(step.channel)}</span> ${esc(step.tip)}</span>` : ''}
+            ${ct.step_updated_at ? `<span class="step-date">Last: ${formatCentralDate(ct.step_updated_at)}</span>` : ''}
+          </div>
+          <div class="contact-actions">
+            ${stepActionButton(ct, step)}
+            ${hasTemplates ? `<button class="btn-bh btn-bh-note btn-sm btn-show-all-templates" data-contact-id="${ct.id}">View Scripts</button>` : ''}
+            ${!hasTemplates && claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-templates" data-contact-id="${ct.id}" data-company-id="${companyId}" style="background:#9b59b6">Generate Scripts</button>` : ''}
+            ${canFlip ? `<button class="btn btn-sm btn-flip-contact" data-contact-id="${ct.id}" data-company-id="${companyId}" style="background:#e67e22;color:#fff;">Flip</button>` : ''}
+            ${bhConnected ? bhButton(ct) : ''}
+            <button class="btn btn-secondary btn-sm btn-edit-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">Edit</button>
+            <button class="btn btn-danger btn-sm btn-del-contact" data-contact-id="${ct.id}" data-company-id="${companyId}">X</button>
+          </div>
+        `;
+      }
       listEl.appendChild(row);
     });
 
@@ -451,6 +472,15 @@ async function loadContacts(companyId) {
     // Generate outreach templates
     listEl.querySelectorAll('.btn-gen-templates').forEach(btn => {
       btn.addEventListener('click', () => generateTemplates(parseInt(btn.dataset.contactId), parseInt(btn.dataset.companyId)));
+    });
+
+    // Move to Flips
+    listEl.querySelectorAll('.btn-flip-contact').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = 'Moving...';
+        await fetch(`/api/tracker/contacts/${btn.dataset.contactId}/flip`, { method: 'POST' });
+        loadContacts(parseInt(btn.dataset.companyId));
+      });
     });
 
     // View all scripts
@@ -655,6 +685,17 @@ function formatTemplateContent(content, channel) {
 function escAttr(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ── Flip eligibility — only Director/VP/CTO, not EM/Head of Eng */
+
+function isFlipEligible(title) {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  // Exclude Engineering Managers and Heads of Engineering
+  if (/\b(engineering manager|head of engineering)\b/.test(t)) return false;
+  // Include Directors, VPs, CTOs
+  return /\b(director|vp|vice president|cto|chief technology|svp|senior vice president)\b/.test(t);
 }
 
 /* ── One-click outreach actions ──────────────────────────────── */
