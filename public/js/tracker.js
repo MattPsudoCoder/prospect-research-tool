@@ -724,6 +724,7 @@ function formatRolesInline(rolesStr) {
   if (!rolesStr) return '—';
   try {
     const roles = JSON.parse(rolesStr);
+    if (Array.isArray(roles) && roles.length === 0) return '—';
     if (Array.isArray(roles) && roles.length > 0) {
       return roles.map(r => {
         if (typeof r === 'object' && r.title) return r.url ? `<a href="${esc(r.url)}" target="_blank" class="role-link">${esc(r.title)}</a>` : esc(r.title);
