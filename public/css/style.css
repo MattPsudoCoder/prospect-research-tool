@@ -567,6 +567,19 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   display: inline-block;
   transition: transform 0.15s;
 }
+.star-toggle {
+  cursor: pointer;
+  font-size: 18px;
+  margin-right: 8px;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+.star-toggle:hover {
+  color: #f1c40f;
+}
+.star-toggle.starred {
+  color: #f1c40f;
+}
 .contact-count-badge {
   font-weight: 400;
   font-size: 12px;

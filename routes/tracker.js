@@ -212,7 +212,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(400).json({ error: `signal_strength must be one of: ${VALID_SIGNAL_STRENGTHS.join(', ')}` });
     }
 
-    const fields = ['ats_detected', 'ats_slug', 'roles_found', 'hiring_signals', 'keywords', 'signal_strength', 'status', 'notes'];
+    const fields = ['ats_detected', 'ats_slug', 'roles_found', 'hiring_signals', 'keywords', 'signal_strength', 'status', 'notes', 'favorite'];
     const updates = [];
     const values = [];
     let idx = 1;

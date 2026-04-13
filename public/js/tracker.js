@@ -10,6 +10,7 @@ const contactsCache = {};
 const trackerSearch = document.getElementById('trackerSearch');
 const trackerStepFilter = document.getElementById('trackerStepFilter');
 const trackerSignalFilter = document.getElementById('trackerSignalFilter');
+const trackerSort = document.getElementById('trackerSort');
 const trackerResultCount = document.getElementById('trackerResultCount');
 
 // Check what features are available
@@ -175,7 +176,7 @@ async function loadTracker() {
       card.id = `company-${c.id}`;
       card.innerHTML = `
         <div class="result-card-header">
-          <h3>${esc(c.name)}</h3>
+          <h3><span class="star-toggle ${c.favorite ? 'starred' : ''}" id="star-${c.id}" data-company-id="${c.id}">${c.favorite ? '\u2605' : '\u2606'}</span>${esc(c.name)}</h3>
           <div class="result-card-badges">
             ${signalBadge(c.signal_strength)}
             ${claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-all" data-company-id="${c.id}" style="background:#9b59b6">Generate All Scripts</button>` : ''}
@@ -202,6 +203,12 @@ async function loadTracker() {
       loadContacts(c.id);
     }
 
+    trackerList.querySelectorAll('.star-toggle').forEach(star => {
+      star.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFavorite(parseInt(star.dataset.companyId));
+      });
+    });
     trackerList.querySelectorAll('.btn-remove').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!confirm('Remove this company and all contacts?')) return;
@@ -758,9 +765,65 @@ document.addEventListener('click', (e) => {
   }
 });
 
+/* ── Favorite toggle ─────────────────────────────────────────── */
+
+async function toggleFavorite(companyId) {
+  const company = allCompanies.find(c => c.id === companyId);
+  if (!company) return;
+  const newVal = !company.favorite;
+  try {
+    await fetch(`/api/tracker/${companyId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ favorite: newVal })
+    });
+    company.favorite = newVal;
+    const star = document.getElementById(`star-${companyId}`);
+    if (star) {
+      star.textContent = newVal ? '\u2605' : '\u2606';
+      star.classList.toggle('starred', newVal);
+    }
+  } catch (err) { console.error('Failed to toggle favorite', err); }
+}
+
+/* ── Sort ────────────────────────────────────────────────────── */
+
+const SIGNAL_ORDER = { High: 0, Medium: 1, Low: 2, '': 3 };
+
+function sortAndRerender() {
+  const sortVal = trackerSort ? trackerSort.value : 'newest';
+  const sorted = [...allCompanies];
+
+  sorted.sort((a, b) => {
+    // Favorites always float to top when sorting by favorites
+    if (sortVal === 'favorites') {
+      if (a.favorite && !b.favorite) return -1;
+      if (!a.favorite && b.favorite) return 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    }
+    if (sortVal === 'signal') {
+      const diff = (SIGNAL_ORDER[a.signal_strength] || 3) - (SIGNAL_ORDER[b.signal_strength] || 3);
+      if (diff !== 0) return diff;
+      return new Date(b.created_at) - new Date(a.created_at);
+    }
+    if (sortVal === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+    // newest (default)
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  // Reorder DOM elements
+  sorted.forEach(c => {
+    const card = document.getElementById(`company-${c.id}`);
+    if (card) trackerList.appendChild(card);
+  });
+
+  applyFilters();
+}
+
 /* ── Filter event listeners ───────────────────────────────────── */
 if (trackerStepFilter) trackerStepFilter.addEventListener('change', applyFilters);
 if (trackerSignalFilter) trackerSignalFilter.addEventListener('change', applyFilters);
+if (trackerSort) trackerSort.addEventListener('change', () => { sortAndRerender(); });
 if (trackerSearch) {
   let searchTimeout;
   trackerSearch.addEventListener('input', () => {
