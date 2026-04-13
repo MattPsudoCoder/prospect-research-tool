@@ -218,10 +218,22 @@ async function addNote(contactId, action, comments) {
   });
 }
 
+/** Quick ping to verify token is still valid. Returns true/false. */
+async function pingToken() {
+  try {
+    const { bhRestToken, restUrl } = await getCredentials();
+    const res = await fetch(`${restUrl}ping?BhRestToken=${bhRestToken}`, { signal: AbortSignal.timeout(5000) });
+    if (res.status === 401) { clearManualToken(); return false; }
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /* ── exports ──────────────────────────────────────────────────── */
 
 module.exports = {
   setManualToken, clearManualToken, getManualToken, isConfigured, getCredentials,
   searchCompany, searchContact, checkCompany, createContact, addNote,
-  analyseNotes, NEGATIVE_SIGNAL_PHRASES, IGNORED_NOTE_ACTIONS,
+  analyseNotes, pingToken, NEGATIVE_SIGNAL_PHRASES, IGNORED_NOTE_ACTIONS,
 };

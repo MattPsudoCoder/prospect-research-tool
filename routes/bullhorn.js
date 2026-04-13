@@ -37,6 +37,19 @@ router.post('/token', async (req, res) => {
   }
 });
 
+// GET /api/bullhorn/ensure-connected — check token is alive, return status
+router.get('/ensure-connected', async (req, res) => {
+  try {
+    const status = bh.isConfigured();
+    if (!status.connected) return res.json({ connected: false, needsRefresh: true });
+    const alive = await bh.pingToken();
+    if (!alive) return res.json({ connected: false, needsRefresh: true });
+    res.json({ connected: true, needsRefresh: false });
+  } catch (err) {
+    res.json({ connected: false, needsRefresh: true, error: err.message });
+  }
+});
+
 // POST /api/bullhorn/disconnect
 router.post('/disconnect', (req, res) => {
   bh.clearManualToken();

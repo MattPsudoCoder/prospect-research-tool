@@ -299,15 +299,22 @@ Use ZoomInfo `enrich_contacts` to get verified business email and LinkedIn URL. 
 **POST-ENRICHMENT US VERIFICATION (mandatory before adding to tracker):**
 After enrichment, check every contact's phone number. If the returned phone has a non-US country code → **reject the contact entirely, do not add to tracker**. Do not strip the phone and add them anyway — a non-US phone means they are not US-based, period. This is the final gate before contacts enter the system.
 
-### Step 8: Bullhorn Contact Check
+### Step 8: Bullhorn Connection Check + Contact Check
 
-If Bullhorn is connected:
-- For each contact: `curl -s "https://prospect-research-tool-production.up.railway.app/api/bullhorn/search/contact?firstName=FIRST&lastName=LAST"`
+**MANDATORY: Verify Bullhorn is connected and token is alive before adding any contacts.**
+
+```bash
+curl -s "https://prospect-research-tool-production.up.railway.app/api/bullhorn/ensure-connected"
+```
+
+- If `needsRefresh: true` → **STOP and reconnect Bullhorn** by grabbing a fresh token from the user's Chrome browser (open Bullhorn tab → extract BhRestToken from localStorage → POST to /api/bullhorn/token). Do NOT skip this step.
+- If `connected: true` → proceed
+
+Then for each contact:
+- `curl -s "https://prospect-research-tool-production.up.railway.app/api/bullhorn/search/contact?firstName=FIRST&lastName=LAST"`
 - Existing with recent activity → "already in BH — skip"
 - Existing but stale → "in BH — update"
 - Not found → "new — push"
-
-If not connected: mark all as "BH unchecked", continue.
 
 ### Step 9: Add Contacts to Tracker
 
