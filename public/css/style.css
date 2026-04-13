@@ -560,6 +560,34 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   color: #3367d6;
 }
 
+/* Tech stack and role type chips */
+.tech-stack-row, .role-types-row {
+  display: block;
+  margin-top: 4px;
+}
+.tech-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #e8f5e9;
+  color: #2e7d32;
+  margin: 1px 2px;
+}
+.role-type-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #fff3e0;
+  color: #e65100;
+  margin: 1px 2px;
+}
+.dark-mode .tech-chip { background: #1b3a1e; color: #81c784; }
+.dark-mode .role-type-chip { background: #3e2210; color: #ffb74d; }
+
 /* Tracker — contacts section */
 .contacts-section {
   margin-top: 16px;

@@ -199,6 +199,8 @@ async function loadTracker() {
         <div class="result-card-meta">
           <span><strong>ATS:</strong> ${c.ats_detected && c.ats_detected !== 'None' ? esc(c.ats_detected) : '—'}</span>
           <span><strong>Roles:</strong> ${formatRolesInline(c.roles_found)}</span>
+          ${hasNoRoleLinks(c.roles_found) && c.role_types ? `<span class="role-types-row"><strong>Role Types:</strong> ${formatRoleTypes(c.role_types)}</span>` : ''}
+          ${c.tech_stack ? `<span class="tech-stack-row"><strong>Tech Stack:</strong> ${formatTechStack(c.tech_stack)}</span>` : ''}
           <span class="tracker-date"><strong>Added:</strong> ${formatCentralDate(c.created_at)}</span>
         </div>
         ${c.hiring_signals ? `<div class="signal-chips">${formatSignalChips(c.hiring_signals)}</div>` : ''}
@@ -798,6 +800,28 @@ function formatRolesInline(rolesStr) {
   return escaped.replace(/(https?:\/\/[^\s,)]+)/g, '<a href="$1" target="_blank" class="role-link">View Jobs</a>') || '—';
 }
 
+function hasNoRoleLinks(rolesStr) {
+  if (!rolesStr) return true;
+  try {
+    const roles = JSON.parse(rolesStr);
+    if (Array.isArray(roles) && roles.length === 0) return true;
+    if (Array.isArray(roles) && roles.some(r => r.url)) return false;
+  } catch {}
+  // Plain text with URLs = has links
+  if (/https?:\/\//.test(rolesStr)) return false;
+  return true;
+}
+
+function formatRoleTypes(roleTypesStr) {
+  if (!roleTypesStr) return '—';
+  return roleTypesStr.split(',').map(r => `<span class="role-type-chip">${esc(r.trim())}</span>`).join('');
+}
+
+function formatTechStack(techStr) {
+  if (!techStr) return '—';
+  return techStr.split(',').map(t => `<span class="tech-chip">${esc(t.trim())}</span>`).join('');
+}
+
 function signalBadge(strength) {
   const s = (strength || 'Low').toLowerCase();
   return `<span class="badge badge-${s}">${strength || 'Low'}</span>`;
@@ -903,11 +927,11 @@ const btnExportCSV = document.getElementById('btnExportCSV');
 if (btnExportCSV) {
   btnExportCSV.addEventListener('click', () => {
     const active = allCompanies.filter(c => c.status !== 'Dropped');
-    const rows = [['Company','Status','Signal','ATS','Website','LinkedIn','Keywords','Added','Contacts']];
+    const rows = [['Company','Status','Signal','ATS','Tech Stack','Role Types','Website','LinkedIn','Keywords','Added','Contacts']];
     for (const c of active) {
       const contacts = contactsCache[c.id] || [];
       const contactNames = contacts.map(ct => `${ct.name} (${ct.title || ''})`).join('; ');
-      rows.push([c.name, c.status, c.signal_strength, c.ats_detected, c.website || '', c.company_linkedin || '', c.keywords || '', c.created_at, contactNames]);
+      rows.push([c.name, c.status, c.signal_strength, c.ats_detected, c.tech_stack || '', c.role_types || '', c.website || '', c.company_linkedin || '', c.keywords || '', c.created_at, contactNames]);
     }
     const csv = rows.map(r => r.map(v => '"' + String(v || '').replace(/"/g, '""') + '"').join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });

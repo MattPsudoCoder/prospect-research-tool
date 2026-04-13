@@ -167,7 +167,7 @@ router.get('/', async (req, res) => {
 // POST — add a company to tracker from prospects
 router.post('/', async (req, res) => {
   try {
-    const { company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength, website, company_linkedin } = req.body;
+    const { company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength, website, company_linkedin, tech_stack, role_types } = req.body;
 
     // ── Guardrails ──
     if (!name || !name.trim()) return res.status(400).json({ error: 'Company name is required' });
@@ -192,9 +192,9 @@ router.post('/', async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO tracked_companies (company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength, website, company_linkedin)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [company_id, name.trim(), ats_detected || '', roles_found || '', hiring_signals || '', keywords || '', signal_strength || '', website || '', company_linkedin || '']
+      `INSERT INTO tracked_companies (company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength, website, company_linkedin, tech_stack, role_types)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [company_id, name.trim(), ats_detected || '', roles_found || '', hiring_signals || '', keywords || '', signal_strength || '', website || '', company_linkedin || '', tech_stack || '', role_types || '']
     );
     const response = result.rows[0];
     if (warnings.length > 0) response.warnings = warnings;
@@ -212,7 +212,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(400).json({ error: `signal_strength must be one of: ${VALID_SIGNAL_STRENGTHS.join(', ')}` });
     }
 
-    const fields = ['ats_detected', 'ats_slug', 'roles_found', 'hiring_signals', 'keywords', 'signal_strength', 'status', 'notes', 'favorite', 'website', 'company_linkedin'];
+    const fields = ['ats_detected', 'ats_slug', 'roles_found', 'hiring_signals', 'keywords', 'signal_strength', 'status', 'notes', 'favorite', 'website', 'company_linkedin', 'tech_stack', 'role_types'];
     const updates = [];
     const values = [];
     let idx = 1;

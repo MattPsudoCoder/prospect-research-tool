@@ -113,6 +113,10 @@ ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_slug TEXT DEFAULT '';
 ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_last_scanned TIMESTAMPTZ DEFAULT NULL;
 ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_role_snapshot JSONB DEFAULT NULL;
 
+-- v1.3 tech_stack and role_types on tracked_companies
+ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS tech_stack TEXT DEFAULT '';
+ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS role_types TEXT DEFAULT '';
+
 -- Seed a default ICP row if none exists
 INSERT INTO icp_settings (industry_sector, company_size_min, company_size_max, geography, role_types)
 SELECT 'Technology', 50, 5000, 'United States', 'Software Engineer, Product Manager, Data Scientist'
