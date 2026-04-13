@@ -561,6 +561,18 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   font-weight: 600;
   margin: 0;
 }
+.toggle-chevron {
+  font-size: 11px;
+  margin-right: 4px;
+  display: inline-block;
+  transition: transform 0.15s;
+}
+.contact-count-badge {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
 .empty-contacts {
   font-size: 13px;
   color: var(--text-muted);

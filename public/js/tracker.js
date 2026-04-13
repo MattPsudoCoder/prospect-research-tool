@@ -191,11 +191,11 @@ async function loadTracker() {
         </div>
         ${c.keywords ? `<div class="result-card-tags">${c.keywords.split(',').map(k => `<span class="tag">${esc(k.trim())}</span>`).join('')}</div>` : ''}
         <div class="contacts-section" id="contacts-${c.id}">
-          <div class="contacts-header">
-            <h4>Contacts</h4>
+          <div class="contacts-header contacts-toggle" data-company-id="${c.id}" style="cursor:pointer;user-select:none">
+            <h4><span class="toggle-chevron" id="chevron-${c.id}">&#9654;</span> Contacts <span class="contact-count-badge" id="count-${c.id}"></span></h4>
             <button class="btn btn-primary btn-sm btn-add-contact" data-company-id="${c.id}">+ Add Contact</button>
           </div>
-          <div class="contacts-list" id="contacts-list-${c.id}"><p class="loading-text">Loading...</p></div>
+          <div class="contacts-list" id="contacts-list-${c.id}" style="display:none"><p class="loading-text">Loading...</p></div>
         </div>
       `;
       trackerList.appendChild(card);
@@ -218,6 +218,17 @@ async function loadTracker() {
     trackerList.querySelectorAll('.btn-push-all').forEach(btn => {
       btn.addEventListener('click', () => pushAllContacts(parseInt(btn.dataset.companyId)));
     });
+    trackerList.querySelectorAll('.contacts-toggle').forEach(toggle => {
+      toggle.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-add-contact')) return;
+        const cid = toggle.dataset.companyId;
+        const list = document.getElementById(`contacts-list-${cid}`);
+        const chevron = document.getElementById(`chevron-${cid}`);
+        const isHidden = list.style.display === 'none';
+        list.style.display = isHidden ? '' : 'none';
+        chevron.innerHTML = isHidden ? '&#9660;' : '&#9654;';
+      });
+    });
 
     applyFilters();
   } catch (err) {
@@ -231,6 +242,8 @@ async function loadContacts(companyId) {
     const res = await fetch(`/api/tracker/${companyId}/contacts`);
     const contacts = await res.json();
     contactsCache[companyId] = contacts;
+    const countBadge = document.getElementById(`count-${companyId}`);
+    if (countBadge) countBadge.textContent = `(${contacts.length})`;
 
     if (contacts.length === 0) {
       listEl.innerHTML = '<p class="empty-contacts">No contacts yet.</p>';
