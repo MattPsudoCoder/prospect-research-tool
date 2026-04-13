@@ -123,31 +123,83 @@ function renderBhBar(data) {
     });
     document.getElementById('bhSyncDay').addEventListener('click', syncDayToBullhorn);
   } else {
+    if (help) help.style.display = 'none';
     bar.innerHTML = `
       <span class="bh-dot disconnected"></span>
-      <span class="bh-label">Bullhorn</span>
-      <div class="bh-connect-form">
-        <input type="text" id="bhToken" placeholder="BhRestToken">
-        <input type="text" id="bhRestUrl" placeholder="restUrl (https://rest...)">
-        <button class="btn-bh" id="bhConnect">Connect</button>
-      </div>
+      <span class="bh-label">Bullhorn not connected</span>
+      <button class="btn-bh" id="bhConnectBtn">Connect Bullhorn</button>
     `;
-    if (help) { help.style.display = 'block'; setupBookmarklet(); }
-    document.getElementById('bhConnect').addEventListener('click', async () => {
-      const token = document.getElementById('bhToken').value.trim();
-      const url = document.getElementById('bhRestUrl').value.trim();
-      if (!token || !url) { alert('Ask Claude Code to connect Bullhorn — it grabs the token from your browser automatically.'); return; }
-      try {
-        const res = await fetch('/api/bullhorn/token', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bhRestToken: token, restUrl: url }),
-        });
-        const data = await res.json();
-        if (data.connected) { checkBhStatus(); loadTracker(); }
-        else alert('Connection failed: ' + (data.error || 'unknown'));
-      } catch (err) { alert('Connection failed: ' + err.message); }
+    document.getElementById('bhConnectBtn').addEventListener('click', () => {
+      showBhConnectModal();
     });
   }
+}
+
+function showBhConnectModal() {
+  // Remove existing modal if any
+  const existing = document.getElementById('bhModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'bhModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  modal.innerHTML = `
+    <div style="background:var(--card-bg,#fff);border-radius:12px;padding:28px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3);color:var(--text,#333);">
+      <h3 style="margin:0 0 16px;font-size:18px;">Connect Bullhorn</h3>
+      <div style="margin-bottom:20px;">
+        <p style="margin:0 0 12px;font-size:14px;line-height:1.6;">
+          <strong>Option 1 — Claude Code (recommended):</strong><br>
+          In your Claude Code terminal, type:<br>
+          <code style="background:var(--bg,#f5f6fa);padding:4px 8px;border-radius:4px;font-size:13px;display:inline-block;margin-top:4px;">connect bullhorn</code>
+        </p>
+        <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">
+          Claude will grab the token from your browser automatically.
+        </p>
+        <hr style="border:none;border-top:1px solid var(--border,#e2e4ea);margin:16px 0;">
+        <p style="margin:0 0 8px;font-size:14px;"><strong>Option 2 — Manual paste:</strong></p>
+        <input type="text" id="bhTokenInput" placeholder="BhRestToken" style="width:100%;padding:8px;margin-bottom:8px;border:1px solid var(--border,#e2e4ea);border-radius:6px;background:var(--bg,#f5f6fa);color:var(--text,#333);font-size:13px;">
+        <input type="text" id="bhUrlInput" placeholder="restUrl (https://rest...)" style="width:100%;padding:8px;margin-bottom:12px;border:1px solid var(--border,#e2e4ea);border-radius:6px;background:var(--bg,#f5f6fa);color:var(--text,#333);font-size:13px;">
+        <p style="margin:0;font-size:11px;color:var(--text-muted,#6b7085);">Open Bullhorn → F12 Console → type: <code>JSON.parse(localStorage.getItem('BhRestToken'))</code> and <code>JSON.parse(localStorage.getItem('rawRestUrl'))</code></p>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-secondary btn-sm" id="bhModalCancel">Cancel</button>
+        <button class="btn-bh" id="bhModalConnect">Connect</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.getElementById('bhModalCancel').addEventListener('click', () => modal.remove());
+
+  document.getElementById('bhModalConnect').addEventListener('click', async () => {
+    const token = document.getElementById('bhTokenInput').value.trim();
+    const url = document.getElementById('bhUrlInput').value.trim();
+    if (!token || !url) {
+      alert('Both fields are required for manual connection. Or use Claude Code — just type "connect bullhorn" in your terminal.');
+      return;
+    }
+    try {
+      const btn = document.getElementById('bhModalConnect');
+      btn.disabled = true; btn.textContent = 'Connecting...';
+      const res = await fetch('/api/bullhorn/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bhRestToken: token, restUrl: url }),
+      });
+      const data = await res.json();
+      if (data.connected) {
+        modal.remove();
+        checkBhStatus();
+        loadTracker();
+      } else {
+        alert('Connection failed: ' + (data.error || 'unknown'));
+        btn.disabled = false; btn.textContent = 'Connect';
+      }
+    } catch (err) {
+      alert('Connection failed: ' + err.message);
+    }
+  });
 }
 
 async function syncDayToBullhorn() {
