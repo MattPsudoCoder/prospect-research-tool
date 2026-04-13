@@ -50,8 +50,12 @@ function applyFilters() {
 
     let show = true;
 
-    // Name search
-    if (search && !c.name.toLowerCase().includes(search)) show = false;
+    // Name search — check company name AND contact names
+    if (search && !c.name.toLowerCase().includes(search)) {
+      const contacts = contactsCache[c.id];
+      const contactMatch = contacts && contacts.some(ct => ct.name.toLowerCase().includes(search) || (ct.title && ct.title.toLowerCase().includes(search)));
+      if (!contactMatch) show = false;
+    }
 
     // Signal strength filter
     if (show && signalVal && c.signal_strength !== signalVal) show = false;
@@ -180,6 +184,12 @@ async function loadTracker() {
         <div class="result-card-header">
           <h3><span class="star-toggle ${c.favorite ? 'starred' : ''}" id="star-${c.id}" data-company-id="${c.id}">${c.favorite ? '\u2605' : '\u2606'}</span>${c.website ? `<a href="${c.website.startsWith('http') ? esc(c.website) : 'https://' + esc(c.website)}" target="_blank" rel="noopener" class="company-name-link">${esc(c.name)}</a>` : esc(c.name)}${c.company_linkedin ? `<a href="${esc(c.company_linkedin)}" target="_blank" rel="noopener" class="company-li-btn" title="LinkedIn">in</a>` : ''}</h3>
           <div class="result-card-badges">
+            <select class="status-select" data-company-id="${c.id}">
+              <option value="New" ${c.status === 'New' ? 'selected' : ''}>New</option>
+              <option value="Working" ${c.status === 'Working' ? 'selected' : ''}>Working</option>
+              <option value="Meeting Set" ${c.status === 'Meeting Set' ? 'selected' : ''}>Meeting Set</option>
+              <option value="Won" ${c.status === 'Won' ? 'selected' : ''}>Won</option>
+            </select>
             ${signalBadge(c.signal_strength)}
             ${claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-all" data-company-id="${c.id}" style="background:#9b59b6">Generate All Scripts</button>` : ''}
             ${bhConnected ? `<button class="btn-bh btn-bh-push btn-sm btn-push-all" data-company-id="${c.id}">Push All to BH</button>` : ''}
@@ -214,6 +224,14 @@ async function loadTracker() {
       loadContacts(c.id);
     }
 
+    trackerList.querySelectorAll('.status-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const cid = sel.dataset.companyId;
+        await fetch(`/api/tracker/${cid}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: sel.value }) });
+        const company = allCompanies.find(c => c.id == cid);
+        if (company) company.status = sel.value;
+      });
+    });
     trackerList.querySelectorAll('.notes-toggle').forEach(toggle => {
       toggle.addEventListener('click', () => {
         const cid = toggle.dataset.companyId;
@@ -303,7 +321,7 @@ async function loadContacts(companyId) {
           <div class="contact-details">
             ${ct.linkedin_url ? `<a href="${esc(ct.linkedin_url)}" target="_blank" class="contact-detail-link channel-linkedin">in</a>` : ''}
             ${ct.email ? `<a href="mailto:${esc(ct.email)}" class="contact-detail-link">${esc(ct.email)}</a>` : ''}
-            ${ct.phone ? `<span class="contact-detail-text">${esc(ct.phone)}</span>` : ''}
+            ${ct.phone ? `<a href="tel:${esc(ct.phone.replace(/[^+\d]/g, ''))}" class="contact-detail-link contact-phone">${esc(ct.phone)}</a>` : ''}
           </div>
         </div>
         <div class="contact-step">
@@ -450,7 +468,7 @@ function showAllTemplates(contactId, contacts) {
 
   const div = document.createElement('div');
   div.className = 'template-display';
-  div.style.cssText = 'background:#f8f9fa;padding:16px;margin-top:8px;border-radius:6px;border:1px solid #e2e4ea;font-size:13px;position:relative;';
+  div.style.cssText = 'background:var(--bg-card);padding:16px;margin-top:8px;border-radius:6px;border:1px solid var(--border);font-size:13px;position:relative;color:var(--text);';
 
   let html = `<button class="btn btn-secondary btn-sm template-close" style="position:absolute;top:8px;right:8px;">Close</button>`;
   html += `<strong style="font-size:15px;">${esc(ct.name)} — Outreach Scripts</strong>`;
@@ -461,16 +479,16 @@ function showAllTemplates(contactId, contacts) {
     const content = templateText(rawContent);
 
     const isCurrent = ts.key === currentKey;
-    const borderColor = isCurrent ? '#4f6ef7' : '#e2e4ea';
-    const bgColor = isCurrent ? '#f0f3ff' : '#fff';
+    const borderColor = isCurrent ? '#4f6ef7' : 'var(--border)';
+    const bgColor = isCurrent ? 'var(--bg-input)' : 'var(--bg)';
     const badge = isCurrent ? '<span style="background:#4f6ef7;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;margin-left:8px;">CURRENT</span>' : '';
 
     html += `<div style="margin-top:14px;padding:12px;background:${bgColor};border:2px solid ${borderColor};border-radius:6px;">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">`;
     html += `<strong>${esc(ts.label)}${badge}</strong>`;
-    html += `<span style="font-size:11px;color:#6b7085;font-weight:600;">${esc(ts.channel)}</span>`;
+    html += `<span style="font-size:11px;color:var(--text-muted);font-weight:600;">${esc(ts.channel)}</span>`;
     html += `</div>`;
-    html += `<hr style="margin:0 0 8px;border-color:#e2e4ea;">`;
+    html += `<hr style="margin:0 0 8px;border-color:var(--border);">`;
     html += `<div class="template-content" style="white-space:pre-wrap;line-height:1.6;">${formatTemplateContent(content, ts.channel)}</div>`;
     html += `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">`;
     html += `<button class="btn btn-primary btn-sm copy-btn" data-content="${escAttr(content)}">Copy</button>`;
@@ -877,6 +895,26 @@ if (trackerSearch) {
   trackerSearch.addEventListener('input', () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(applyFilters, 250);
+  });
+}
+
+/* ── CSV Export ───────────────────────────────────────────────── */
+const btnExportCSV = document.getElementById('btnExportCSV');
+if (btnExportCSV) {
+  btnExportCSV.addEventListener('click', () => {
+    const active = allCompanies.filter(c => c.status !== 'Dropped');
+    const rows = [['Company','Status','Signal','ATS','Website','LinkedIn','Keywords','Added','Contacts']];
+    for (const c of active) {
+      const contacts = contactsCache[c.id] || [];
+      const contactNames = contacts.map(ct => `${ct.name} (${ct.title || ''})`).join('; ');
+      rows.push([c.name, c.status, c.signal_strength, c.ats_detected, c.website || '', c.company_linkedin || '', c.keywords || '', c.created_at, contactNames]);
+    }
+    const csv = rows.map(r => r.map(v => '"' + String(v || '').replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `tracker-export-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
   });
 }
 

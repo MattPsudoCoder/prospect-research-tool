@@ -45,6 +45,14 @@ async function loadDashboard() {
     // Needs attention
     renderAttention(data);
 
+    // Today's actions
+    renderTodayActions(data.todayActions);
+
+    // ATS new roles badge
+    if (data.newRolesCount > 0) {
+      document.getElementById('statThisWeek').innerHTML = data.addedThisWeek + `<span style="font-size:12px;color:#27ae60;display:block">${data.newRolesCount} new ATS roles</span>`;
+    }
+
     // Recent activity
     renderActivity(data.recentActivities);
 
@@ -121,6 +129,22 @@ function renderAttention(data) {
 
   card.style.display = '';
   list.innerHTML = items.join('');
+}
+
+function renderTodayActions(actions) {
+  const card = document.getElementById('todayCard');
+  const list = document.getElementById('todayActions');
+  if (!card || !list || !actions || actions.length === 0) { if (card) card.style.display = 'none'; return; }
+
+  card.style.display = '';
+  list.innerHTML = actions.map(a => `
+    <div class="today-action-row">
+      <span class="today-contact">${esc(a.name)}</span>
+      <span class="today-company">${esc(a.company)}</span>
+      <span class="today-step">${STEP_LABELS[a.step] || 'Step ' + a.step}</span>
+      <span class="today-days">${a.days}d ago</span>
+    </div>
+  `).join('');
 }
 
 function renderActivity(activities) {

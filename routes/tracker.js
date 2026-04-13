@@ -673,10 +673,30 @@ router.get('/stats', async (req, res) => {
 
     const addedThisWeek = companies.rows.filter(c => new Date(c.created_at) > new Date(now - 7 * 24 * 60 * 60 * 1000)).length;
 
+    // Today's actions — contacts at step 1+ with step_updated_at 2+ days ago, sorted by company signal
+    const twoDaysAgo = new Date(now - 2 * 24 * 60 * 60 * 1000);
+    const signalOrder = { High: 0, Medium: 1, Low: 2 };
+    const companySignals = {};
+    for (const c of companies.rows) companySignals[c.id] = c.signal_strength || 'Low';
+
+    const todayActions = contacts.rows
+      .filter(c => c.outreach_step > 0 && c.outreach_step < 7 && c.step_updated_at && new Date(c.step_updated_at) < twoDaysAgo)
+      .map(c => {
+        const days = Math.floor((now - new Date(c.step_updated_at)) / (24 * 60 * 60 * 1000));
+        return { id: c.id, name: c.name, company: c.company_name, companyId: c.tracked_company_id, step: c.outreach_step, days, signal: companySignals[c.tracked_company_id] || 'Low' };
+      })
+      .sort((a, b) => (signalOrder[a.signal] || 2) - (signalOrder[b.signal] || 2) || b.days - a.days)
+      .slice(0, 15);
+
+    // ATS new roles count
+    const atsResults = await db.query(`SELECT ats_role_snapshot, ats_last_scanned FROM tracked_companies WHERE ats_role_snapshot IS NOT NULL AND ats_last_scanned > NOW() - INTERVAL '24 hours'`);
+    const newRolesCount = atsResults.rows.reduce((sum, r) => sum + (Array.isArray(r.ats_role_snapshot) ? r.ats_role_snapshot.length : 0), 0);
+
     res.json({
       totalCompanies, totalContacts, addedThisWeek, signalCounts, contactsByStep,
       staleContacts, noEmailContacts, companiesNoContacts,
-      recentActivities: activities.rows.slice(0, 10)
+      recentActivities: activities.rows.slice(0, 10),
+      todayActions, newRolesCount
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

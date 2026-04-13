@@ -55,16 +55,23 @@
       <div id="attentionList"></div>
     </div>
 
-    <!-- Signal Breakdown -->
-    <div class="card">
-      <h2>Signal Breakdown</h2>
-      <div class="signal-bars" id="signalBars"></div>
+    <!-- Today's Actions -->
+    <div class="card" id="todayCard" style="display:none">
+      <h2>Today's Actions</h2>
+      <p class="subtitle">Contacts to follow up — step updated 2+ days ago, sorted by signal strength</p>
+      <div id="todayActions"></div>
     </div>
 
-    <!-- Recent Activity -->
-    <div class="card">
-      <h2>Recent Activity</h2>
-      <div id="recentActivity"><p class="loading-text">Loading...</p></div>
+    <!-- Two-column bottom -->
+    <div class="dashboard-bottom-row">
+      <div class="card">
+        <h2>Signal Breakdown</h2>
+        <div class="signal-bars" id="signalBars"></div>
+      </div>
+      <div class="card">
+        <h2>Recent Activity</h2>
+        <div id="recentActivity"><p class="loading-text">Loading...</p></div>
+      </div>
     </div>
   </main>
 
