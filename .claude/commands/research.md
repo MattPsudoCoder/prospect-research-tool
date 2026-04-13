@@ -271,16 +271,19 @@ For each company, use ZoomInfo `search_contacts`. **Contact lookup order flexes 
 1. CTO / Chief Technology Officer
 2. VP of Engineering
 3. Head of Engineering
+4. Engineering Manager
 
 **150-500 employees:**
 1. VP of Engineering
 2. Director of Engineering
 3. Head of Engineering
+4. Engineering Manager
 
 **500+ employees:**
 1. Director of Engineering
 2. VP of Engineering
 3. CTO (still pull — Matthew has a specific use case for CTO contacts at larger companies)
+4. Engineering Manager
 
 Search with:
 - `companyName` = company name

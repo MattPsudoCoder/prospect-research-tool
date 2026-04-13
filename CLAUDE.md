@@ -84,7 +84,7 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - Tech stacks: TypeScript/React/Node, Scala (ZIO/Cats/Tapir/http4s = priority niche), Java, Python, Go, iOS, Android, Flutter
 - NOT DevOps/SRE
 - Exclude consulting, staffing, government, nonprofit
-- Contact hierarchy: CTO at <150 employees, VP at 150-500, Director at 500+ (CTO always pulled at all sizes)
+- Contact hierarchy: CTO at <150 employees, VP at 150-500, Director at 500+ (CTO always pulled at all sizes). Engineering Manager pulled at ALL company sizes.
 
 ## BULLHORN RULES
 
