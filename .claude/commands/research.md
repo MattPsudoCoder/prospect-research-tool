@@ -214,7 +214,7 @@ Capture from job boards: specific role titles, seniority levels, salary ranges, 
 
 For each qualifying company:
 
-**ZoomInfo data:** employee count, revenue, funding history, industry, growth rate.
+**ZoomInfo data:** employee count, revenue, funding history, industry, growth rate, **website**, **LinkedIn URL** (from `socialMediaUrls` field). Include `socialMediaUrls` in the `requiredFields` for `enrich_companies`. The website and LinkedIn URL must be captured and passed when pushing to the tracker.
 
 **Hire velocity:** count of engineering hires in last 6 months from Step 1 data.
 
@@ -235,7 +235,7 @@ For each company scoring ≥ 2.0:
 ```bash
 curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracker \
   -H "Content-Type: application/json" \
-  -d '{"name":"COMPANY_NAME","ats_detected":"ATS_NAME","roles_found":"ROLE_DETAILS","hiring_signals":"SIGNALS","keywords":"KEYWORDS","signal_strength":"High|Medium|Low"}'
+  -d '{"name":"COMPANY_NAME","ats_detected":"ATS_NAME","roles_found":"ROLE_DETAILS","hiring_signals":"SIGNALS","keywords":"KEYWORDS","signal_strength":"High|Medium|Low","website":"https://company.com","company_linkedin":"https://www.linkedin.com/company/slug"}'
 ```
 
 Signal strength mapping: score ≥ 4.0 = High, ≥ 3.0 = Medium, ≥ 2.0 = Low.

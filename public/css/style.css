@@ -564,6 +564,22 @@ tr:hover td { background: rgba(79,110,247,0.03); }
   text-decoration: underline;
   color: var(--accent);
 }
+.company-li-btn {
+  display: inline-block;
+  background: #0a66c2;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 8px;
+  text-decoration: none;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+.company-li-btn:hover {
+  background: #004182;
+}
 .contacts-header h4 {
   font-size: 14px;
   font-weight: 600;

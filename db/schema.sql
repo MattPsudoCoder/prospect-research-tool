@@ -106,6 +106,8 @@ ALTER TABLE tracked_contacts ADD COLUMN IF NOT EXISTS bullhorn_synced_at TIMESTA
 
 -- v1.2 ATS slug override for scan feature
 ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS favorite BOOLEAN DEFAULT FALSE;
+ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS website TEXT DEFAULT '';
+ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS company_linkedin TEXT DEFAULT '';
 ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_slug TEXT DEFAULT '';
 -- v1.2 last ATS scan timestamp and role snapshot
 ALTER TABLE tracked_companies ADD COLUMN IF NOT EXISTS ats_last_scanned TIMESTAMPTZ DEFAULT NULL;
