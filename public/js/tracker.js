@@ -193,6 +193,15 @@ async function loadTracker() {
           <span class="tracker-date"><strong>Added:</strong> ${formatCentralDate(c.created_at)}</span>
         </div>
         ${c.keywords ? `<div class="result-card-tags">${c.keywords.split(',').map(k => `<span class="tag">${esc(k.trim())}</span>`).join('')}</div>` : ''}
+        <div class="company-notes-section">
+          <div class="notes-toggle" data-company-id="${c.id}" style="cursor:pointer;user-select:none">
+            <span class="notes-icon">&#128221;</span> <span class="notes-label">${c.notes ? 'Notes' : 'Add Note'}</span>
+          </div>
+          <div class="notes-editor" id="notes-editor-${c.id}" style="display:none">
+            <textarea class="notes-textarea" id="notes-text-${c.id}" rows="3" placeholder="Add notes about this company...">${esc(c.notes || '')}</textarea>
+            <button class="btn btn-primary btn-sm btn-save-notes" data-company-id="${c.id}">Save</button>
+          </div>
+        </div>
         <div class="contacts-section" id="contacts-${c.id}">
           <div class="contacts-header contacts-toggle" data-company-id="${c.id}" style="cursor:pointer;user-select:none">
             <h4><span class="toggle-chevron" id="chevron-${c.id}">&#9654;</span> Contacts <span class="contact-count-badge" id="count-${c.id}"></span></h4>
@@ -205,6 +214,24 @@ async function loadTracker() {
       loadContacts(c.id);
     }
 
+    trackerList.querySelectorAll('.notes-toggle').forEach(toggle => {
+      toggle.addEventListener('click', () => {
+        const cid = toggle.dataset.companyId;
+        const editor = document.getElementById(`notes-editor-${cid}`);
+        editor.style.display = editor.style.display === 'none' ? '' : 'none';
+      });
+    });
+    trackerList.querySelectorAll('.btn-save-notes').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const cid = btn.dataset.companyId;
+        const text = document.getElementById(`notes-text-${cid}`).value;
+        await fetch(`/api/tracker/${cid}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: text }) });
+        const label = btn.closest('.company-notes-section').querySelector('.notes-label');
+        if (label) label.textContent = text ? 'Notes' : 'Add Note';
+        btn.textContent = 'Saved!';
+        setTimeout(() => { btn.textContent = 'Save'; }, 1500);
+      });
+    });
     trackerList.querySelectorAll('.star-toggle').forEach(star => {
       star.addEventListener('click', (e) => {
         e.stopPropagation();

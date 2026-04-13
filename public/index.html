@@ -11,7 +11,6 @@
   <nav class="sidebar">
     <div class="logo">Prospect<span>Research</span></div>
     <a href="/" class="nav-link active">Dashboard</a>
-    <a href="/prospects" class="nav-link">Prospects</a>
     <a href="/tracker" class="nav-link">Tracker</a>
     <a href="/icp" class="nav-link">ICP Settings</a>
     <a href="/history" class="nav-link">History</a>
@@ -20,68 +19,57 @@
 
   <main class="content">
     <header>
-      <h1>Pipeline Dashboard</h1>
-      <p class="subtitle">Add companies, run the research pipeline, and review results.</p>
+      <h1>Dashboard</h1>
+      <p class="subtitle">Daily action summary</p>
     </header>
 
-    <!-- Input Section -->
-    <form id="pipelineForm" class="card">
-      <h2>Input Sources</h2>
-
-      <div class="form-group">
-        <label for="runName">Run Name (optional)</label>
-        <input type="text" id="runName" name="runName" placeholder="e.g. Q1 SaaS Targets">
+    <!-- Stats Cards -->
+    <div class="dashboard-stats" id="dashStats">
+      <div class="stat-card">
+        <div class="stat-number" id="statCompanies">—</div>
+        <div class="stat-label">Active Companies</div>
       </div>
-
-      <div class="form-group">
-        <label for="manualNames">Manual Company Names</label>
-        <textarea id="manualNames" name="manualNames" rows="5" placeholder="One company per line, or comma-separated&#10;&#10;Acme Corp&#10;Beta Inc&#10;Gamma Technologies"></textarea>
+      <div class="stat-card">
+        <div class="stat-number" id="statContacts">—</div>
+        <div class="stat-label">Total Contacts</div>
       </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="csvFile">CSV Upload</label>
-          <input type="file" id="csvFile" name="csvFile" accept=".csv">
-          <small>Single column of company names</small>
-        </div>
-        <div class="form-group">
-          <label for="zoominfoFile">ZoomInfo CSV Export</label>
-          <input type="file" id="zoominfoFile" name="zoominfoFile" accept=".csv">
-          <small>Standard ZoomInfo export format</small>
-        </div>
+      <div class="stat-card">
+        <div class="stat-number" id="statThisWeek">—</div>
+        <div class="stat-label">Added This Week</div>
       </div>
-
-      <div class="form-group checkbox-group">
-        <label>
-          <input type="checkbox" id="useICP" name="useICP" value="true">
-          Include Claude ICP Search
-        </label>
-        <small>Uses your saved ICP settings to find additional companies via web search</small>
+      <div class="stat-card">
+        <div class="stat-number" id="statNeedAction">—</div>
+        <div class="stat-label">Need Attention</div>
       </div>
-
-      <button type="submit" id="runBtn" class="btn btn-primary">Run Pipeline</button>
-    </form>
-
-    <!-- Progress Section -->
-    <div id="progressSection" class="card hidden">
-      <h2>Pipeline Progress</h2>
-      <div class="progress-bar-container">
-        <div class="progress-bar" id="progressBar"></div>
-      </div>
-      <p id="progressText">Starting...</p>
     </div>
 
-    <!-- Results Section -->
-    <div id="resultsSection" class="card hidden">
-      <div class="results-header">
-        <h2>Results</h2>
-        <button id="exportBtn" class="btn btn-secondary">Export CSV</button>
-      </div>
-      <div id="resultsBody" class="results-grid"></div>
+    <!-- Pipeline Funnel -->
+    <div class="card" id="funnelCard">
+      <h2>Outreach Pipeline</h2>
+      <div class="funnel" id="funnel"></div>
+    </div>
+
+    <!-- Needs Attention -->
+    <div class="card" id="attentionCard" style="display:none">
+      <h2>Needs Attention</h2>
+      <div id="attentionList"></div>
+    </div>
+
+    <!-- Signal Breakdown -->
+    <div class="card">
+      <h2>Signal Breakdown</h2>
+      <div class="signal-bars" id="signalBars"></div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card">
+      <h2>Recent Activity</h2>
+      <div id="recentActivity"><p class="loading-text">Loading...</p></div>
     </div>
   </main>
 
   <script src="/js/theme.js"></script>
+  <script src="/js/timezone-utils.js"></script>
   <script src="/js/dashboard.js"></script>
 </body>
 </html>

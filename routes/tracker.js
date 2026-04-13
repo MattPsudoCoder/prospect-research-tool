@@ -630,4 +630,57 @@ router.post('/contacts/:contactId/advance-step', async (req, res) => {
   }
 });
 
+// GET — dashboard stats
+router.get('/stats', async (req, res) => {
+  try {
+    const companies = await db.query(`SELECT id, name, signal_strength, status, created_at, notes, website, company_linkedin FROM tracked_companies WHERE status != 'Dropped' ORDER BY created_at DESC`);
+    const contacts = await db.query(`
+      SELECT tc.*, comp.name as company_name FROM tracked_contacts tc
+      JOIN tracked_companies comp ON tc.tracked_company_id = comp.id
+      WHERE comp.status != 'Dropped'
+    `);
+    const activities = await db.query(`SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 50`);
+
+    const now = new Date();
+    const threeDaysAgo = new Date(now - 3 * 24 * 60 * 60 * 1000);
+
+    const totalCompanies = companies.rows.length;
+    const totalContacts = contacts.rows.length;
+    const contactsByStep = {};
+    const staleContacts = [];
+    const noEmailContacts = [];
+    const companiesNoContacts = [];
+
+    for (const c of contacts.rows) {
+      const step = c.outreach_step || 0;
+      contactsByStep[step] = (contactsByStep[step] || 0) + 1;
+      if (c.step_updated_at && new Date(c.step_updated_at) < threeDaysAgo && step > 0 && step < 7) {
+        staleContacts.push({ id: c.id, name: c.name, title: c.title, company: c.company_name, step, stepUpdated: c.step_updated_at });
+      }
+      if (!c.email || c.email.trim() === '') {
+        noEmailContacts.push({ id: c.id, name: c.name, company: c.company_name });
+      }
+    }
+
+    const companyContactCounts = {};
+    for (const c of contacts.rows) companyContactCounts[c.tracked_company_id] = true;
+    for (const c of companies.rows) {
+      if (!companyContactCounts[c.id]) companiesNoContacts.push({ id: c.id, name: c.name });
+    }
+
+    const signalCounts = { High: 0, Medium: 0, Low: 0 };
+    for (const c of companies.rows) signalCounts[c.signal_strength] = (signalCounts[c.signal_strength] || 0) + 1;
+
+    const addedThisWeek = companies.rows.filter(c => new Date(c.created_at) > new Date(now - 7 * 24 * 60 * 60 * 1000)).length;
+
+    res.json({
+      totalCompanies, totalContacts, addedThisWeek, signalCounts, contactsByStep,
+      staleContacts, noEmailContacts, companiesNoContacts,
+      recentActivities: activities.rows.slice(0, 10)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
