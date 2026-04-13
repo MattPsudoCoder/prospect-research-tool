@@ -359,6 +359,50 @@ curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracke
 
 **Dropped companies (scored < 2.0):** List with score breakdown so Matthew can override if needed.
 
+### Step 11: Post-Run Verification (MANDATORY)
+
+After all pushes are complete, run these verification checks. Do NOT skip this step.
+
+```bash
+# 1. Verify no active companies have zero contacts
+curl -s https://prospect-research-tool-production.up.railway.app/api/tracker | node -e "
+const c=[];process.stdin.on('data',d=>c.push(d));process.stdin.on('end',async()=>{
+  const data=JSON.parse(Buffer.concat(c));
+  const active=data.filter(x=>x.status!=='Dropped'&&x.status!=='Review Later');
+  for(const co of active){
+    const res=await fetch('https://prospect-research-tool-production.up.railway.app/api/tracker/'+co.id+'/contacts');
+    const cts=await res.json();
+    if(cts.length===0) console.log('ZERO_CONTACTS: '+co.id+' '+co.name+' ('+co.status+')');
+  }
+});"
+
+# 2. Verify dropped companies actually have Dropped status
+curl -s https://prospect-research-tool-production.up.railway.app/api/tracker | node -e "
+const c=[];process.stdin.on('data',d=>c.push(d));process.stdin.on('end',()=>{
+  JSON.parse(Buffer.concat(c)).filter(x=>x.status==='New'&&!x.tech_stack&&!x.roles_found).forEach(x=>console.log('SUSPECT_NEW: '+x.id+' '+x.name));
+});"
+
+# 3. Verify all contacts synced to Bullhorn
+curl -s https://prospect-research-tool-production.up.railway.app/api/tracker | node -e "
+const c=[];process.stdin.on('data',d=>c.push(d));process.stdin.on('end',async()=>{
+  const data=JSON.parse(Buffer.concat(c)).filter(x=>x.status!=='Dropped'&&x.status!=='Review Later');
+  let unsynced=0;
+  for(const co of data){
+    const res=await fetch('https://prospect-research-tool-production.up.railway.app/api/tracker/'+co.id+'/contacts');
+    (await res.json()).forEach(ct=>{if(!ct.bullhorn_id)unsynced++});
+  }
+  if(unsynced>0){console.log('UNSYNCED: '+unsynced+' contacts not in Bullhorn — run backfill');
+    fetch('https://prospect-research-tool-production.up.railway.app/api/tracker/backfill-bullhorn',{method:'POST'}).then(r=>r.json()).then(d=>console.log('Backfill: '+JSON.stringify(d)));
+  }else{console.log('ALL CONTACTS SYNCED TO BULLHORN')}
+});"
+```
+
+If ANY of these checks fail:
+- Zero contacts on active company → find and add contacts before reporting
+- Wrong status → PATCH to correct status
+- Unsynced contacts → run backfill endpoint
+- Do NOT report "pipeline complete" until all checks pass
+
 ## Important Rules
 
 - **Evidence first** — talent movement is the primary discovery method

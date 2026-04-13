@@ -167,7 +167,7 @@ router.get('/', async (req, res) => {
 // POST — add a company to tracker from prospects
 router.post('/', async (req, res) => {
   try {
-    const { company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength, website, company_linkedin, tech_stack, role_types } = req.body;
+    const { company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength, website, company_linkedin, tech_stack, role_types, status } = req.body;
 
     // ── Guardrails ──
     if (!name || !name.trim()) return res.status(400).json({ error: 'Company name is required' });
@@ -192,9 +192,9 @@ router.post('/', async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO tracked_companies (company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength, website, company_linkedin, tech_stack, role_types)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [company_id, name.trim(), ats_detected || '', roles_found || '', hiring_signals || '', keywords || '', signal_strength || '', website || '', company_linkedin || '', tech_stack || '', role_types || '']
+      `INSERT INTO tracked_companies (company_id, name, ats_detected, roles_found, hiring_signals, keywords, signal_strength, website, company_linkedin, tech_stack, role_types, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [company_id, name.trim(), ats_detected || '', roles_found || '', hiring_signals || '', keywords || '', signal_strength || '', website || '', company_linkedin || '', tech_stack || '', role_types || '', status || 'New']
     );
     const response = result.rows[0];
     if (warnings.length > 0) response.warnings = warnings;
