@@ -892,7 +892,7 @@ function sortAndRerender() {
       return new Date(b.created_at) - new Date(a.created_at);
     }
     if (sortVal === 'signal') {
-      const diff = (SIGNAL_ORDER[a.signal_strength] || 3) - (SIGNAL_ORDER[b.signal_strength] || 3);
+      const diff = (SIGNAL_ORDER[a.signal_strength] ?? 3) - (SIGNAL_ORDER[b.signal_strength] ?? 3);
       if (diff !== 0) return diff;
       return new Date(b.created_at) - new Date(a.created_at);
     }
