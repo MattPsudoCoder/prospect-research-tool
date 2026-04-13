@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prospect Research — Review Later</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script>if(localStorage.getItem('darkMode')==='on')document.documentElement.classList.add('dark-mode');</script>
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="logo">Prospect<span>Research</span></div>
+    <a href="/" class="nav-link">Dashboard</a>
+    <a href="/tracker" class="nav-link">Tracker</a>
+    <a href="/review-later" class="nav-link active">Review Later</a>
+    <a href="/icp" class="nav-link">ICP Settings</a>
+    <a href="/history" class="nav-link">History</a>
+    <button class="dark-mode-toggle" id="darkToggle">Dark Mode</button>
+  </nav>
+
+  <main class="content">
+    <header>
+      <h1>Review Later</h1>
+      <p class="subtitle">Companies shelved for future review. Restore them to the tracker or remove permanently.</p>
+    </header>
+
+    <div id="reviewList" class="results-grid">
+      <div class="empty-state"><p>Loading...</p></div>
+    </div>
+  </main>
+
+  <script src="/js/theme.js"></script>
+  <script src="/js/timezone-utils.js"></script>
+  <script src="/js/review-later.js"></script>
+</body>
+</html>

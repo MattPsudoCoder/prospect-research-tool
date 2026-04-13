@@ -633,11 +633,11 @@ router.post('/contacts/:contactId/advance-step', async (req, res) => {
 // GET — dashboard stats
 router.get('/stats', async (req, res) => {
   try {
-    const companies = await db.query(`SELECT id, name, signal_strength, status, created_at, notes, website, company_linkedin FROM tracked_companies WHERE status != 'Dropped' ORDER BY created_at DESC`);
+    const companies = await db.query(`SELECT id, name, signal_strength, status, created_at, notes, website, company_linkedin FROM tracked_companies WHERE status NOT IN ('Dropped', 'Review Later') ORDER BY created_at DESC`);
     const contacts = await db.query(`
       SELECT tc.*, comp.name as company_name FROM tracked_contacts tc
       JOIN tracked_companies comp ON tc.tracked_company_id = comp.id
-      WHERE comp.status != 'Dropped'
+      WHERE comp.status NOT IN ('Dropped', 'Review Later')
     `);
     const activities = await db.query(`SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 50`);
 

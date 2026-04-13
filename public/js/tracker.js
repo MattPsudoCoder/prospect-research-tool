@@ -43,7 +43,7 @@ function applyFilters() {
   const signalVal = trackerSignalFilter ? trackerSignalFilter.value : '';
   let visible = 0;
 
-  const activeCompanies = allCompanies.filter(c => c.status !== 'Dropped');
+  const activeCompanies = allCompanies.filter(c => c.status !== 'Dropped' && c.status !== 'Review Later');
   for (const c of activeCompanies) {
     const card = document.getElementById(`company-${c.id}`);
     if (!card) continue;
@@ -176,7 +176,7 @@ async function loadTracker() {
 
     trackerList.innerHTML = '';
     for (const c of allCompanies) {
-      if (c.status === 'Dropped') continue;
+      if (c.status === 'Dropped' || c.status === 'Review Later') continue;
       const card = document.createElement('div');
       card.className = 'tracker-card';
       card.id = `company-${c.id}`;
@@ -193,7 +193,7 @@ async function loadTracker() {
             ${signalBadge(c.signal_strength)}
             ${claudeAvailable ? `<button class="btn-bh btn-sm btn-gen-all" data-company-id="${c.id}" style="background:#9b59b6">Generate All Scripts</button>` : ''}
             ${bhConnected ? `<button class="btn-bh btn-bh-push btn-sm btn-push-all" data-company-id="${c.id}">Push All to BH</button>` : ''}
-            <button class="btn btn-danger btn-sm btn-remove" data-id="${c.id}">Remove</button>
+            <button class="btn btn-secondary btn-sm btn-shelve" data-id="${c.id}">Review Later</button>
           </div>
         </div>
         <div class="result-card-meta">
@@ -258,10 +258,15 @@ async function loadTracker() {
         toggleFavorite(parseInt(star.dataset.companyId));
       });
     });
-    trackerList.querySelectorAll('.btn-remove').forEach(btn => {
+    trackerList.querySelectorAll('.btn-shelve').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Remove this company and all contacts?')) return;
-        await fetch(`/api/tracker/${btn.dataset.id}`, { method: 'DELETE' });
+        btn.disabled = true;
+        btn.textContent = 'Moving...';
+        await fetch(`/api/tracker/${btn.dataset.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'Review Later' })
+        });
         loadTracker();
       });
     });
@@ -926,7 +931,7 @@ if (trackerSearch) {
 const btnExportCSV = document.getElementById('btnExportCSV');
 if (btnExportCSV) {
   btnExportCSV.addEventListener('click', () => {
-    const active = allCompanies.filter(c => c.status !== 'Dropped');
+    const active = allCompanies.filter(c => c.status !== 'Dropped' && c.status !== 'Review Later');
     const rows = [['Company','Status','Signal','ATS','Tech Stack','Role Types','Website','LinkedIn','Keywords','Added','Contacts']];
     for (const c of active) {
       const contacts = contactsCache[c.id] || [];

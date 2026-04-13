@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.prompt // \"\"' | grep -qiE 'deploy|database|postgres|neon|railway|render|hosting|api.key|env.var|new service|set up|sign up|infrastructure|migrate' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"INFRASTRUCTURE CHECKLIST — Before proposing or building anything, verify: (1) Check git remotes and Railway dashboard for existing deployments. (2) Check Railway env vars for existing credentials. (3) Check for existing databases (Railway Postgres). (4) Hit the live URL to see current state. (5) List ALL costs including trial limits. (6) State findings before proceeding. DO NOT skip this.\"}}' || true",
+            "timeout": 5,
+            "statusMessage": "Checking infrastructure context..."
+          }
+        ]
+      }
+    ]
+  }
+}
