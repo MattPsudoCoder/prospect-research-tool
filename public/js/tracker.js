@@ -43,7 +43,8 @@ function applyFilters() {
   const signalVal = trackerSignalFilter ? trackerSignalFilter.value : '';
   let visible = 0;
 
-  for (const c of allCompanies) {
+  const activeCompanies = allCompanies.filter(c => c.status !== 'Dropped');
+  for (const c of activeCompanies) {
     const card = document.getElementById(`company-${c.id}`);
     if (!card) continue;
 
@@ -71,9 +72,9 @@ function applyFilters() {
 
   if (trackerResultCount) {
     if (search || stepVal !== '' || signalVal) {
-      trackerResultCount.textContent = `${visible} of ${allCompanies.length} companies`;
+      trackerResultCount.textContent = `${visible} of ${activeCompanies.length} companies`;
     } else {
-      trackerResultCount.textContent = `${allCompanies.length} companies`;
+      trackerResultCount.textContent = `${activeCompanies.length} companies`;
     }
   }
 }
@@ -171,6 +172,7 @@ async function loadTracker() {
 
     trackerList.innerHTML = '';
     for (const c of allCompanies) {
+      if (c.status === 'Dropped') continue;
       const card = document.createElement('div');
       card.className = 'tracker-card';
       card.id = `company-${c.id}`;

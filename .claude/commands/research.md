@@ -64,7 +64,7 @@ Before any research, fetch existing tracker companies:
 curl -s https://prospect-research-tool-production.up.railway.app/api/tracker
 ```
 
-Extract all company names. Skip any company already in the tracker during discovery. This prevents re-researching companies from previous runs.
+Extract all company names — **including companies with status "Dropped"**. Skip any company already in the tracker during discovery, regardless of status. This prevents re-researching companies from previous runs, even ones that scored below 2.0.
 
 ### Step 1: Discover Companies Through Hiring Evidence
 
@@ -247,6 +247,13 @@ Do NOT put company descriptions, funding info, or employee counts in `roles_foun
 Signal strength mapping: score ≥ 4.0 = High, ≥ 3.0 = Medium, ≥ 2.0 = Low.
 
 Note the returned `id` — needed for adding contacts.
+
+**Also push companies that scored < 2.0** with `"status":"Dropped"` and no contacts. This prevents them from being re-researched on the next run. They won't appear on the tracker board but will be included in the dedup check.
+```bash
+curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracker \
+  -H "Content-Type: application/json" \
+  -d '{"name":"COMPANY_NAME","hiring_signals":"Score: X.X — below 2.0 cutoff. REASON.","signal_strength":"Low","status":"Dropped"}'
+```
 
 ### Step 6: Find Hiring Managers (ZoomInfo)
 
