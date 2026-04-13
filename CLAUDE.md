@@ -34,6 +34,9 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - Said "verified" without actually testing on the live app
 - Stripped non-US phone numbers and added contacts anyway — a non-US phone means they're overseas, reject them entirely
 - Put company descriptions/funding info in `roles_found` — that field is strictly for specific job titles and links, not general company info
+- Cloned outreach scripts with name-swap instead of generating per contact — every contact needs individually crafted scripts
+- Pushed companies as "Dropped" but POST route didn't accept status field — status was silently ignored, companies showed as "New" with zero contacts
+- Didn't run post-pipeline verification checks — contacts went unsynced to Bullhorn, dropped companies appeared as active
 
 ## SERVER-SIDE GUARDRAILS (already enforced in routes/tracker.js)
 
@@ -56,7 +59,7 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 | `services/research.js` | Multi-tier research orchestrator |
 | `services/scoring.js` | 5-dimension prospect scoring |
 | `services/ats.js` | Greenhouse/Lever API + US location filter |
-| `services/outreach.js` | Claude-powered outreach script generation + cloneTemplates() |
+| `services/outreach.js` | Claude-powered per-contact personalized outreach scripts (no cloning) |
 | `services/claude.js` | Claude API wrapper (web search for hiring signals) |
 | `services/dedup.js` | Cross-run dedup |
 | `public/js/tracker.js` | Tracker frontend — STEPS array with bhAction mapping, one-click actions, template viewer |
@@ -92,7 +95,7 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - End-of-day sync: "Sync Day" button pushes all unsynced activities as BH Notes with correct action types.
 - Each outreach step maps to a BH action type (BD Message, Reverse Market, Attempted BD Call).
 
-## OUTREACH TONE
+## OUTREACH TONE & PERSONALIZATION
 
 - Write as Matthew Davie, consultative and strategic
 - Never salesy, never generic
@@ -100,7 +103,13 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - NEVER "I hope this finds you well" or "I wanted to reach out"
 - NEVER congratulate on promotions
 - One specific, relevant detail beats three generic ones
-- Spec-in emails need realistic hypothetical candidate profiles
+- Spec-in emails need realistic hypothetical candidate profiles matching the company's ACTUAL tech stack
+- Scripts are generated PER CONTACT individually — never clone/swap names
+- Seniority-aware tone: CTO gets strategic/peer tone, Director gets practical/direct, Manager gets tactical/specific
+- Each script must reference company-specific data: tech stack, open roles, hiring signals
+- Value-add emails must contain genuine market insight about the company's specific tech stack
+- Batch generation endpoint: POST /api/tracker/:companyId/generate-batch-outreach (force:true to regenerate)
+- Bulk regeneration: POST /api/tracker/regenerate-all-scripts
 
 ## MEMORY (synced across machines)
 
