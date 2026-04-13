@@ -239,7 +239,17 @@ curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracke
 ```
 
 **CRITICAL: `roles_found` vs `hiring_signals` — these are DIFFERENT fields, do not duplicate content:**
-- **`roles_found`** = specific open engineering job titles and counts, ideally with links to the postings. Example: `"3x Senior Software Engineer, 2x Backend Engineer, ML Engineer (Greenhouse: https://boards.greenhouse.io/company/jobs)"`
+
+- **`roles_found`** = specific open engineering job titles with links to the actual postings. Use JSON array format when you have individual role URLs:
+  ```json
+  [{"title":"Senior Software Engineer","url":"https://boards.greenhouse.io/company/jobs/123"},{"title":"Backend Engineer","url":"https://boards.greenhouse.io/company/jobs/456"}]
+  ```
+  If individual role URLs aren't available but you have the ATS board URL, use plain text with the board link at the end:
+  ```
+  "3x Senior Software Engineer, 2x Backend Engineer, ML Engineer. https://boards.greenhouse.io/company/jobs"
+  ```
+  URLs in plain text will auto-render as "View Jobs" links.
+
 - **`hiring_signals`** = company-level context: funding, employee count, growth rate, location. Example: `"$90M Series C March 2026. 60 employees. Austin TX. 300% YoY bookings growth."`
 
 Do NOT put company descriptions, funding info, or employee counts in `roles_found`. That field is strictly for job titles and role links.

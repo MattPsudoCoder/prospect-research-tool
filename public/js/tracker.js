@@ -731,7 +731,9 @@ function formatRolesInline(rolesStr) {
       }).join(', ');
     }
   } catch {}
-  return esc(rolesStr) || '—';
+  // Auto-link URLs in plain text roles strings
+  const escaped = esc(rolesStr);
+  return escaped.replace(/(https?:\/\/[^\s,)]+)/g, '<a href="$1" target="_blank" class="role-link">View Jobs</a>') || '—';
 }
 
 function signalBadge(strength) {
