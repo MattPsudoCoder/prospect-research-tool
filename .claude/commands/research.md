@@ -238,6 +238,12 @@ curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracke
   -d '{"name":"COMPANY_NAME","ats_detected":"ATS_NAME","roles_found":"ROLE_DETAILS","hiring_signals":"SIGNALS","keywords":"KEYWORDS","signal_strength":"High|Medium|Low","website":"https://company.com","company_linkedin":"https://www.linkedin.com/company/slug"}'
 ```
 
+**CRITICAL: `roles_found` vs `hiring_signals` — these are DIFFERENT fields, do not duplicate content:**
+- **`roles_found`** = specific open engineering job titles and counts, ideally with links to the postings. Example: `"3x Senior Software Engineer, 2x Backend Engineer, ML Engineer (Greenhouse: https://boards.greenhouse.io/company/jobs)"`
+- **`hiring_signals`** = company-level context: funding, employee count, growth rate, location. Example: `"$90M Series C March 2026. 60 employees. Austin TX. 300% YoY bookings growth."`
+
+Do NOT put company descriptions, funding info, or employee counts in `roles_found`. That field is strictly for job titles and role links.
+
 Signal strength mapping: score ≥ 4.0 = High, ≥ 3.0 = Medium, ≥ 2.0 = Low.
 
 Note the returned `id` — needed for adding contacts.

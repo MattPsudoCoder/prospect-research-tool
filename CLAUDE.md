@@ -33,6 +33,7 @@ Matthew Davie's prospect research app for tech recruitment at Signify Technology
 - Backfilled data instead of doing it right the first time — created double the work
 - Said "verified" without actually testing on the live app
 - Stripped non-US phone numbers and added contacts anyway — a non-US phone means they're overseas, reject them entirely
+- Put company descriptions/funding info in `roles_found` — that field is strictly for specific job titles and links, not general company info
 
 ## SERVER-SIDE GUARDRAILS (already enforced in routes/tracker.js)
 
