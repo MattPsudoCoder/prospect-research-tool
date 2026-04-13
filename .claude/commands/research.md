@@ -240,19 +240,17 @@ curl -X POST https://prospect-research-tool-production.up.railway.app/api/tracke
 
 **CRITICAL: `roles_found` vs `hiring_signals` — these are DIFFERENT fields, do not duplicate content:**
 
-- **`roles_found`** = specific open engineering job titles with links to the actual postings. Use JSON array format when you have individual role URLs:
+- **`roles_found`** = JSON array of clickable links to specific job postings. **NOTHING ELSE.** No descriptions, no counts, no "on staff" text, no career page suggestions. Each entry must have a `title` and `url` pointing to the actual job posting.
   ```json
   [{"title":"Senior Software Engineer","url":"https://boards.greenhouse.io/company/jobs/123"},{"title":"Backend Engineer","url":"https://boards.greenhouse.io/company/jobs/456"}]
   ```
-  If individual role URLs aren't available but you have the ATS board URL, use plain text with the board link at the end:
-  ```
-  "3x Senior Software Engineer, 2x Backend Engineer, ML Engineer. https://boards.greenhouse.io/company/jobs"
-  ```
-  URLs in plain text will auto-render as "View Jobs" links.
+  To get individual role URLs from Greenhouse: `https://api.greenhouse.io/v1/boards/SLUG/jobs` — each job has an `absolute_url` field.
+  To get individual role URLs from Lever: `https://api.lever.co/v0/postings/SLUG` — each posting has a `hostedUrl` field.
+  If no public ATS jobs are found, set `roles_found` to `"[]"` (empty array). Do NOT fill it with freetext descriptions.
 
-- **`hiring_signals`** = company-level context: funding, employee count, growth rate, location. Example: `"$90M Series C March 2026. 60 employees. Austin TX. 300% YoY bookings growth."`
+- **`hiring_signals`** = company-level context: funding, employee count, growth rate, location, confirmed hires from ZoomInfo. Example: `"$90M Series C March 2026. 60 employees. Austin TX. 300% YoY bookings growth. Staff Frontend Engineer hire confirmed."`
 
-Do NOT put company descriptions, funding info, or employee counts in `roles_found`. That field is strictly for job titles and role links.
+Do NOT put company descriptions, funding info, employee counts, hire confirmations, or career page links in `roles_found`. That field is strictly for linked job postings.
 
 Signal strength mapping: score ≥ 4.0 = High, ≥ 3.0 = Medium, ≥ 2.0 = Low.
 
