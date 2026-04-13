@@ -101,18 +101,18 @@ function renderAttention(data) {
 
   const items = [];
 
-  for (const c of data.staleContacts) {
+  for (const c of data.staleContacts.slice(0, 5)) {
     items.push(`<div class="attention-item attention-stale"><strong>${esc(c.name)}</strong> at ${esc(c.company)} — stuck at step ${c.step} since ${formatDate(c.stepUpdated)}</div>`);
   }
-  for (const c of data.companiesNoContacts) {
+  if (data.staleContacts.length > 5) items.push(`<div class="attention-item">... and ${data.staleContacts.length - 5} more stale contacts</div>`);
+  for (const c of data.companiesNoContacts.slice(0, 5)) {
     items.push(`<div class="attention-item attention-missing"><strong>${esc(c.name)}</strong> — no contacts added yet</div>`);
   }
-  for (const c of data.noEmailContacts.slice(0, 10)) {
+  if (data.companiesNoContacts.length > 5) items.push(`<div class="attention-item">... and ${data.companiesNoContacts.length - 5} more companies without contacts</div>`);
+  for (const c of data.noEmailContacts.slice(0, 5)) {
     items.push(`<div class="attention-item attention-email"><strong>${esc(c.name)}</strong> at ${esc(c.company)} — missing email</div>`);
   }
-  if (data.noEmailContacts.length > 10) {
-    items.push(`<div class="attention-item">... and ${data.noEmailContacts.length - 10} more contacts missing email</div>`);
-  }
+  if (data.noEmailContacts.length > 5) items.push(`<div class="attention-item">... and ${data.noEmailContacts.length - 5} more contacts missing email</div>`);
 
   if (items.length === 0) {
     card.style.display = 'none';
